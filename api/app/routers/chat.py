@@ -3,9 +3,11 @@ from fastapi.responses import StreamingResponse
 from typing import Dict, List, Optional, Any
 import logging
 import time
+import json
 
 from ..models.chat_model import get_chat_model, Message as ChatMessage
 from ..models.gemma_model import get_gemma_model
+from ..models.files_assistant import get_files_assistant
 from ..models.schemas import ChatCompletionRequest, ChatCompletionResponse, Message
 from ..core.dependencies import check_rate_limit
 
@@ -42,6 +44,59 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
             ChatMessage(role=msg.role, content=msg.content)
             for msg in data.messages
         ]
+        
+        # 最後のユーザーメッセージを取得
+        latest_user_message = data.messages[-1].content if data.messages and data.messages[-1].role == "user" else ""
+        
+        # ファイル操作の意図を検出
+        if latest_user_message:
+            files_assistant = get_files_assistant()
+            is_file_op, op_type, op_params = files_assistant.detect_file_operation(latest_user_message)
+            
+            if is_file_op:
+                # ファイル操作を実行
+                result = files_assistant.execute_file_operation(op_type, op_params)
+                
+                # 操作結果に基づいて応答を生成
+                if result.get("success", False):
+                    if op_type == "list_files":
+                        files = result.get("files", [])
+                        current_dir = result.get("current_dir", "")
+                        
+                        files_text = ""
+                        for file in files:
+                            file_type = "📁 " if file.get("is_dir") else "📄 "
+                            size_info = f" ({file.get('size', 0)} bytes)" if not file.get("is_dir") else ""
+                            files_text += f"{file_type}{file.get('name')}{size_info}\n"
+                        
+                        response_text = f"## ディレクトリ: {current_dir or '/'}\n\n{files_text}"
+                        
+                    elif op_type == "read_file":
+                        content = result.get("content", "")
+                        path = result.get("path", "")
+                        
+                        response_text = f"## ファイル: {path}\n\n```\n{content}\n```"
+                        
+                    else:
+                        response_text = f"ファイル操作が完了しました: {result.get('message', '')}"
+                else:
+                    response_text = f"エラーが発生しました: {result.get('message', '不明なエラー')}"
+                
+                # 応答メッセージを作成
+                response = ChatCompletionResponse(
+                    message=Message(
+                        role="assistant",
+                        content=response_text
+                    ),
+                    usage={
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                        "time_seconds": round(time.time() - start_time, 2),
+                    }
+                )
+                
+                return response
         
         if data.stream:
             async def streaming_generator():
