@@ -1,0 +1,43 @@
+{
+  "name": "@your-org/gemma-3-12b-client",
+  "version": "0.1.0",
+  "description": "TypeScript client for the Gemma 3 12B API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint --ext .ts src/",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "gemma",
+    "llm",
+    "api",
+    "client",
+    "typescript"
+  ],
+  "author": "Your Organization",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "dependencies": {
+    "axios": "^1.6.0",
+    "eventsource-parser": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.12.3",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
