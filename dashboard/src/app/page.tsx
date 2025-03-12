@@ -32,13 +32,16 @@ export default function ChatInterface() {
 
     try {
       // APIエンドポイントにリクエスト
-      const response = await fetch('http://localhost:8000/api/v1/generate', {
+      const response = await fetch('http://localhost:8000/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt: formatPrompt(messages, userMessage),
+          messages: [
+            ...messages.map(msg => ({ role: msg.role, content: msg.content })), 
+            { role: 'user', content: userMessage }
+          ],
           max_tokens: 1000,
           temperature: 0.7,
         }),
@@ -51,7 +54,7 @@ export default function ChatInterface() {
       const data = await response.json()
       
       // アシスタントの応答をチャットに追加
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.text }])
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.message.content }])
     } catch (error) {
       console.error('エラー:', error)
       setMessages((prev) => [
@@ -61,28 +64,6 @@ export default function ChatInterface() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  // チャット履歴を含めたプロンプトの作成
-  function formatPrompt(messageHistory: Message[], currentMessage: string): string {
-    // チャット履歴から会話形式のプロンプトを生成
-    let prompt = 'あなたは役立つAIアシスタントです。以下の会話を元に最新の質問に回答してください。\n\n'
-    
-    // 直近の数メッセージだけ含める（コンテキストウィンドウの制限を考慮）
-    const recentMessages = messageHistory.slice(-6)
-    
-    for (const message of recentMessages) {
-      if (message.role === 'user') {
-        prompt += `ユーザー: ${message.content}\n`
-      } else {
-        prompt += `アシスタント: ${message.content}\n`
-      }
-    }
-    
-    // 現在のメッセージを追加
-    prompt += `ユーザー: ${currentMessage}\nアシスタント: `
-    
-    return prompt
   }
 
   return (
