@@ -1,15 +1,31 @@
-# Gemma 3 12B API
+# Gemma 3 12B カスタムチャットインターフェース
 
-ローカルに Google Gemma 3 12B モデルを構築し、API として利用できるようにするプロジェクトです。
+ローカルにGoogle Gemma 3 12Bモデルを構築し、ファイル操作や推論機能を備えたカスタムAPIとして利用できるプロジェクトです。
 
-## 概要
+![Gemma 3 12B API](https://raw.githubusercontent.com/ZundamonnoVRChatkaisetu/gemma-3-12b-api/main/dashboard/public/screenshot.png)
 
-このプロジェクトでは、以下の機能を提供します：
+## 主な機能
 
-1. Google の Gemma 3 12B モデルをローカル環境で実行
-2. FastAPI を使用したモデルの API サーバー
-3. TypeScript クライアントライブラリ
-4. Next.js ベースの管理ダッシュボード
+1. **ChatGPTスタイルのインターフェース**
+   - 継続的な会話履歴
+   - 自然な対話体験
+   - ストリーミングレスポンス
+
+2. **ファイル操作機能**
+   - Windowsファイルシステムのブラウズ
+   - ファイルの作成・読み込み・編集・削除
+   - テキストファイルの内容編集
+   - ディレクトリ管理
+
+3. **推論機能**
+   - ステップバイステップの思考プロセス
+   - 複雑な問題解決
+   - 確信度評価
+
+4. **完全にローカル**
+   - すべての処理がローカル環境で完結
+   - データプライバシーの確保
+   - インターネット接続不要（初回ダウンロード後）
 
 ## プロジェクト構造
 
@@ -22,10 +38,6 @@
 │   │   └── routers/      # API エンドポイント
 │   ├── requirements.txt  # Python 依存関係
 │   └── Dockerfile        # API サーバーのコンテナ化
-├── client/               # TypeScript クライアントライブラリ
-│   ├── src/              # ソースコード
-│   ├── package.json      # 依存関係
-│   └── tsconfig.json     # TypeScript 設定
 └── dashboard/            # Next.js 管理ダッシュボード
     ├── src/              # ソースコード
     │   ├── app/          # ページコンポーネント
@@ -35,10 +47,65 @@
     └── tsconfig.json     # TypeScript 設定
 ```
 
-## インストール方法
+## セットアップ方法
 
-詳細なインストール手順については、各ディレクトリの README を参照してください。
+### 1. 前提条件
+
+- Python 3.10以上
+- Node.js 20.0.0以上
+- CUDA対応GPU（推奨：NVIDIA GPU、VRAM 24GB以上）
+- Hugging Faceアカウント（Gemmaモデルの利用に必要）
+
+### 2. APIサーバーのセットアップ
+
+```bash
+cd api
+python -m venv venv
+source venv/bin/activate  # Linux/Macの場合
+# または
+venv\Scripts\activate     # Windowsの場合
+
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+.envファイルを編集して、HuggingFaceのトークンを追加します：
+```
+HF_TOKEN=あなたのHuggingFaceトークン
+```
+
+### 3. APIサーバーの起動
+
+```bash
+uvicorn app.main:app --reload
+```
+
+初回起動時には、Gemma 3 12Bモデル（約12GB）がダウンロードされます。
+
+### 4. ダッシュボードのセットアップ
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+これで http://localhost:3000 にアクセスすれば、チャットインターフェースが利用できます。
+
+## カスタマイズ
+
+### ファイル操作のベースディレクトリ変更
+
+セキュリティのため、デフォルトではユーザーのホームディレクトリのみにアクセスが制限されています。これを変更するには、`api/app/routers/file_operations.py`の`BASE_DIR`変数を編集してください。
+
+### モデルの設定変更
+
+モデルの動作を調整するには、`api/app/.env`ファイルを編集します：
+
+- `USE_4BIT_QUANTIZATION`: メモリ使用量削減のための量子化（デフォルトはTrue）
+- `MAX_NEW_TOKENS`: 生成する最大トークン数
+- `DEFAULT_TEMPERATURE`: 生成のランダム性（高いほどランダム）
 
 ## ライセンス
 
-Gemma は Google によって開発され、[特定のライセンス条件](https://huggingface.co/google/gemma-3-12b-it) の下で提供されています。このリポジトリのコードは MIT ライセンスの下で提供されていますが、モデル自体の使用には Google の条件が適用されます。
+このプロジェクトのコードはMITライセンスで提供されています。Gemmaモデル自体はGoogleのライセンスが適用されます。詳細は[Gemma 3のライセンス](https://huggingface.co/google/gemma-3-12b-it)をご確認ください。
