@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 
 from .core.config import settings
 from .core.dependencies import get_token_header
-from .routers import text_generation, embeddings, health, chat
+from .routers import text_generation, embeddings, health, chat, file_operations, reasoning
 
 # ロギングの設定
 logging.basicConfig(
@@ -48,6 +48,18 @@ app.include_router(
     chat.router,
     prefix="/api/v1",
     tags=["chat"],
+    dependencies=[Depends(get_token_header)] if settings.API_AUTH_REQUIRED else [],
+)
+app.include_router(
+    file_operations.router,
+    prefix="/api/v1/files",
+    tags=["file operations"],
+    dependencies=[Depends(get_token_header)] if settings.API_AUTH_REQUIRED else [],
+)
+app.include_router(
+    reasoning.router,
+    prefix="/api/v1",
+    tags=["reasoning"],
     dependencies=[Depends(get_token_header)] if settings.API_AUTH_REQUIRED else [],
 )
 
