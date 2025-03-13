@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # プロジェクト設定
-    PROJECT_NAME: str = "Gemma 3 12B API"
+    PROJECT_NAME: str = "Gemma 3 API"
     API_VERSION: str = "v1"
     DEBUG: bool = True
     
@@ -16,15 +16,20 @@ class Settings(BaseSettings):
     # CORSの設定
     CORS_ORIGINS: List[str] = ["*"]
     
-    # モデル設定
-    MODEL_ID: str = "google/gemma-3-12b-it"
-    MODEL_CACHE_DIR: str = "./models"
-    USE_4BIT_QUANTIZATION: bool = True
-    USE_8BIT_QUANTIZATION: bool = False
-    USE_FLASH_ATTENTION: bool = True
+    # モデル選択
+    USE_OLLAMA: bool = True
     
-    # HuggingFace認証
+    # Hugging Face モデル設定 (USE_OLLAMA=Falseの場合に使用)
+    HF_MODEL_ID: str = "google/gemma-3-12b-it"
+    HF_MODEL_CACHE_DIR: str = "./models"
+    HF_USE_4BIT_QUANTIZATION: bool = True
+    HF_USE_8BIT_QUANTIZATION: bool = False
+    HF_USE_FLASH_ATTENTION: bool = True
     HF_TOKEN: Optional[str] = None
+    
+    # Ollama設定 (USE_OLLAMA=Trueの場合に使用)
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL_NAME: str = "gemma3:27b"
     
     # 推論設定
     MAX_NEW_TOKENS: int = 2048
