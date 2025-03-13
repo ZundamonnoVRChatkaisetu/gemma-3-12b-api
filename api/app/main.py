@@ -6,6 +6,7 @@ from typing import List, Optional, Dict, Any
 
 from .core.config import settings
 from .core.dependencies import get_token_header
+from .core.check_env import check_api_keys
 from .routers import text_generation, embeddings, health, chat, file_operations, reasoning, web_search, github_operations
 
 # ロギングの設定
@@ -14,6 +15,9 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# 環境変数が正しく読み込まれているか確認
+check_api_keys()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
