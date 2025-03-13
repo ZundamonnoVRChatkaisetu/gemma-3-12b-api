@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any, Optional
 
-from .gemma_model import get_gemma_model
+from .model_factory import get_model
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class ChatModel:
         """
         チャットモデルを初期化する
         """
-        self.gemma_model = get_gemma_model()
+        self.model = get_model()
 
     def format_prompt(self, messages: List[Message]) -> str:
         """
@@ -106,7 +106,7 @@ class ChatModel:
         prompt = self.format_prompt(messages)
         
         if stream:
-            return self.gemma_model.generate_text(
+            return self.model.generate_text(
                 prompt=prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
@@ -115,7 +115,7 @@ class ChatModel:
                 stream=True,
             )
         else:
-            return self.gemma_model.generate_text(
+            return self.model.generate_text(
                 prompt=prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
