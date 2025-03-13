@@ -23,7 +23,7 @@ class TextGenerationResponse(BaseModel):
     テキスト生成レスポンスのスキーマ
     """
     text: str = Field(..., description="生成されたテキスト")
-    usage: Dict[str, int] = Field(..., description="使用量情報")
+    usage: Dict[str, Any] = Field(..., description="使用量情報")
 
 class Message(BaseModel):
     """
@@ -68,7 +68,7 @@ class ChatCompletionResponse(BaseModel):
     チャット完了レスポンスのスキーマ
     """
     message: Message = Field(..., description="アシスタントの応答メッセージ")
-    usage: Dict[str, int] = Field(..., description="使用量情報")
+    usage: Dict[str, Any] = Field(..., description="使用量情報")
 
 class EmbeddingRequest(BaseModel):
     """
@@ -87,7 +87,7 @@ class EmbeddingResponse(BaseModel):
     埋め込みレスポンスのスキーマ
     """
     embedding: List[float] = Field(..., description="テキストの埋め込みベクトル")
-    usage: Dict[str, int] = Field(..., description="使用量情報")
+    usage: Dict[str, Any] = Field(..., description="使用量情報")
 
 class ModelInfoResponse(BaseModel):
     """
