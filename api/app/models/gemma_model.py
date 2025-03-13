@@ -1,7 +1,7 @@
 import os
 import logging
 import torch
-from typing import Dict, List, Optional, Union, Any, Tuple
+from typing import Dict, List, Optional, Union, Any, Tuple, Generator
 from transformers import (
     AutoTokenizer, 
     AutoModelForCausalLM,
