@@ -4,7 +4,7 @@ import logging
 import time
 from pydantic import BaseModel, Field
 
-from ..models.gemma_model import get_gemma_model
+from ..models.model_factory import get_model, get_tokenizer
 from ..core.dependencies import check_rate_limit
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,8 @@ async def execute_reasoning(request: Request, data: ReasoningRequest):
     start_time = time.time()
     
     try:
-        model = get_gemma_model()
+        model = get_model()
+        tokenizer = get_tokenizer()
         
         # 推論プロンプトの構築
         prompt = f"""以下の質問に対して段階的に推論してください。
@@ -115,9 +116,20 @@ async def execute_reasoning(request: Request, data: ReasoningRequest):
                     # パースエラーの場合はデフォルト値を使用
                     confidence = 0.5
             
-        # トークン使用量の計算
-        input_tokens = len(model.tokenizer.encode(prompt))
-        output_tokens = len(model.tokenizer.encode(reasoning_output))
+        # レスポンスが空の場合、デフォルトの応答を提供
+        if not reasoning_steps:
+            reasoning_steps = ["推論ステップが提供されませんでした。"]
+        if not conclusion:
+            conclusion = "結論が導き出せませんでした。"
+            
+        # トークン使用量の計算（これは推定です）
+        try:
+            input_tokens = len(tokenizer.encode(prompt))
+            output_tokens = len(tokenizer.encode(reasoning_output))
+        except:
+            # トークン化に失敗した場合、単語数で代用
+            input_tokens = len(prompt.split())
+            output_tokens = len(reasoning_output.split())
         
         return ReasoningResponse(
             reasoning_steps=reasoning_steps,
