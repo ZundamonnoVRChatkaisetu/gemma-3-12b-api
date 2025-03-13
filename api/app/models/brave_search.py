@@ -47,11 +47,14 @@ class BraveSearchClient:
                 "X-Subscription-Token": self.api_key
             }
             
+            # search_langパラメータを削除し、基本的なパラメータだけを使用
             params = {
                 "q": query,
-                "count": count,
-                "search_lang": "ja"
+                "count": count
             }
+            
+            # デバッグ用にリクエスト情報をログに出力
+            logger.debug(f"Brave Search APIリクエスト - URL: {self.api_url}, パラメータ: {params}")
             
             response = requests.get(
                 self.api_url,
@@ -71,6 +74,7 @@ class BraveSearchClient:
                         "description": web.get("description", "")
                     })
                 
+                logger.info(f"検索成功: '{query}', 結果数: {len(results)}")
                 return {
                     "success": True,
                     "query": query,
