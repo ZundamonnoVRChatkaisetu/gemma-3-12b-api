@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Any
 import logging
 import time
 
-from ..models.gemma_model import get_gemma_model
+from ..models.model_factory import get_model, get_tokenizer
 from ..models.schemas import TextGenerationRequest, TextGenerationResponse
 from ..core.dependencies import check_rate_limit
 
@@ -16,7 +16,7 @@ router = APIRouter()
     "/generate", 
     response_model=TextGenerationResponse,
     summary="テキストを生成する",
-    description="Gemma 3 12B モデルを使用してテキストを生成します",
+    description="モデルを使用してテキストを生成します",
     dependencies=[Depends(check_rate_limit)],
 )
 async def generate_text(request: Request, data: TextGenerationRequest):
@@ -33,7 +33,8 @@ async def generate_text(request: Request, data: TextGenerationRequest):
     start_time = time.time()
     
     try:
-        model = get_gemma_model()
+        model = get_model()
+        tokenizer = get_tokenizer()
         
         if data.stream:
             async def streaming_generator():
@@ -67,9 +68,14 @@ async def generate_text(request: Request, data: TextGenerationRequest):
                 stream=False,
             )
             
-            # トークン使用量の計算
-            input_tokens = len(model.tokenizer.encode(data.prompt))
-            output_tokens = len(model.tokenizer.encode(generated_text))
+            # トークン使用量の計算（これは推定です）
+            try:
+                input_tokens = len(tokenizer.encode(data.prompt))
+                output_tokens = len(tokenizer.encode(generated_text))
+            except:
+                # トークン化に失敗した場合、単語数で代用
+                input_tokens = len(data.prompt.split())
+                output_tokens = len(generated_text.split())
             
             # レスポンスの作成
             response = TextGenerationResponse(
