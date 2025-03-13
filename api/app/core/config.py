@@ -47,6 +47,14 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     
+    # Brave Search API設定
+    BRAVE_SEARCH_API_KEY: Optional[str] = None
+    BRAVE_SEARCH_API_URL: str = "https://api.search.brave.com/res/v1/web/search"
+    
+    # GitHub API設定
+    GITHUB_API_TOKEN: Optional[str] = None
+    GITHUB_API_URL: str = "https://api.github.com"
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
