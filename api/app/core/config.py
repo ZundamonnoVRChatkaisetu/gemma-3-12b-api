@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     
     # Ollama設定 (USE_OLLAMA=Trueの場合に使用)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL_NAME: str = "gemma3:27b"
+    OLLAMA_MODEL_NAME: str = "gemma3:12b"
     
     # 推論設定
     MAX_NEW_TOKENS: int = 2048
