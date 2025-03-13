@@ -33,10 +33,10 @@ class FilesAssistant:
             Tuple[bool, str, Dict[str, Any]]: (操作が検出されたか, 操作の種類, パラメータ)
         """
         # ファイル操作を検出するためのプロンプトを作成
-        detect_prompt = f"""あなたはユーザーメッセージからファイル操作意図を特定するアシスタントです。
+        detect_prompt = """あなたはユーザーメッセージからファイル操作意図を特定するアシスタントです。
 以下のメッセージからファイル操作の意図を検出し、JSONフォーマットで返してください。
 
-ユーザーメッセージ: {user_message}
+ユーザーメッセージ: {}
 
 以下の操作を検出できます:
 1. ファイル一覧表示: 例「ファイル一覧を表示して」「ディレクトリの内容を見せて」
@@ -48,17 +48,17 @@ class FilesAssistant:
 7. ファイルコピー: 例「このファイルをコピーして」
 
 出力はJSON形式で:
-{
+{{
   "is_file_operation": true/false,
   "operation_type": "list_files/read_file/write_file/create_directory/delete_file/move_file/copy_file",
-  "parameters": {
+  "parameters": {{
     "path": "ファイルパス",
     "content": "書き込む内容",
-    "destination": "移動先パス",
-    ...
-  }
-}
-"""
+    "destination": "移動先パス"
+  }}
+}}
+""".format(user_message)
+
         # モデルに推論させる
         response = self.chat_model.generate_response([
             Message(role="system", content=detect_prompt),
