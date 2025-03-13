@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from .chat_model import get_chat_model, Message
 from .brave_search import get_brave_search_client
 from .github_client import get_github_client
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -13,13 +14,37 @@ class SmartAssistant:
     """
     Web検索とGitHub操作機能を持つスマートアシスタント
     """
+    _instance = None
+    
+    def __new__(cls):
+        """シングルトンパターンを使用"""
+        if cls._instance is None:
+            cls._instance = super(SmartAssistant, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self):
         """
         SmartAssistantを初期化する
         """
+        if getattr(self, "_initialized", False):
+            return
+            
+        self._initialized = True
         self.chat_model = get_chat_model()
         self.brave_search = get_brave_search_client()
         self.github_client = get_github_client()
+        
+        # APIキーの状態をログに出力
+        if self.brave_search.api_key:
+            logger.info("SmartAssistant: Brave Search APIキーが設定されています")
+        else:
+            logger.warning("SmartAssistant: Brave Search APIキーが設定されていません")
+            
+        if self.github_client.api_token:
+            logger.info("SmartAssistant: GitHub APIトークンが設定されています")
+        else:
+            logger.warning("SmartAssistant: GitHub APIトークンが設定されていません")
     
     def detect_web_search_intent(self, user_message: str) -> Tuple[bool, str]:
         """
@@ -31,6 +56,21 @@ class SmartAssistant:
         Returns:
             Tuple[bool, str]: (検索意図があるか, 検索クエリ)
         """
+        logger.debug(f"Web検索意図検出: '{user_message}'")
+        
+        # 明示的な検索キーワードを確認
+        search_keywords = ["検索", "調べて", "教えて", "知りたい", "最新の", "情報"]
+        if any(keyword in user_message for keyword in search_keywords):
+            # 簡易的な検索クエリ抽出（より高度な実装に置き換え可能）
+            query = user_message
+            for prefix in ["について検索", "を検索", "を調べて", "について教えて", "について知りたい"]:
+                if prefix in user_message:
+                    query = user_message.split(prefix)[0]
+                    break
+            
+            logger.info(f"Web検索意図を検出: クエリ='{query}'")
+            return True, query
+        
         # 検索の意図を検出するためのプロンプトを作成
         detect_prompt = """あなたはユーザーメッセージからWeb検索の意図を特定するアシスタントです。
 以下のメッセージからWeb検索の意図を検出し、JSONフォーマットで返してください。
@@ -59,6 +99,7 @@ class SmartAssistant:
         # JSONを抽出
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if not json_match:
+            logger.warning(f"Web検索意図検出: JSONが見つかりませんでした: {response}")
             return False, ""
             
         json_str = json_match.group(0)
@@ -70,6 +111,11 @@ class SmartAssistant:
             is_search_intent = result.get("is_search_intent", False)
             search_query = result.get("search_query", "")
             
+            if is_search_intent:
+                logger.info(f"Web検索意図を検出: クエリ='{search_query}'")
+            else:
+                logger.debug("Web検索意図なし")
+                
             return is_search_intent, search_query
             
         except Exception as e:
@@ -86,6 +132,27 @@ class SmartAssistant:
         Returns:
             Tuple[bool, str, Dict[str, Any]]: (操作意図があるか, 操作タイプ, 操作パラメータ)
         """
+        logger.debug(f"GitHub操作意図検出: '{user_message}'")
+        
+        # 明示的なGitHubキーワードを確認
+        github_keywords = ["GitHub", "リポジトリ", "レポジトリ", "リポジトリ一覧"]
+        if any(keyword in user_message for keyword in github_keywords):
+            # 簡易的な操作タイプ特定
+            operation_type = "list_repos"  # デフォルト
+            parameters = {}
+            
+            if "一覧" in user_message or "リスト" in user_message:
+                operation_type = "list_repos"
+            elif "検索" in user_message:
+                operation_type = "search_repos"
+                # 検索クエリを抽出
+                if "を検索" in user_message:
+                    query = user_message.split("を検索")[0].strip()
+                    parameters["query"] = query
+            
+            logger.info(f"GitHub操作意図を検出: タイプ='{operation_type}', パラメータ={parameters}")
+            return True, operation_type, parameters
+        
         # GitHub操作の意図を検出するためのプロンプトを作成
         detect_prompt = """あなたはユーザーメッセージからGitHub操作の意図を特定するアシスタントです。
 以下のメッセージからGitHub操作の意図を検出し、JSONフォーマットで返してください。
@@ -124,6 +191,7 @@ class SmartAssistant:
         # JSONを抽出
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if not json_match:
+            logger.warning(f"GitHub操作意図検出: JSONが見つかりませんでした: {response}")
             return False, "", {}
             
         json_str = json_match.group(0)
@@ -136,6 +204,11 @@ class SmartAssistant:
             operation_type = result.get("operation_type", "")
             parameters = result.get("parameters", {})
             
+            if is_github_operation:
+                logger.info(f"GitHub操作意図を検出: タイプ='{operation_type}', パラメータ={parameters}")
+            else:
+                logger.debug("GitHub操作意図なし")
+                
             return is_github_operation, operation_type, parameters
             
         except Exception as e:
@@ -154,6 +227,7 @@ class SmartAssistant:
             Dict[str, Any]: 検索結果
         """
         try:
+            logger.info(f"Web検索を実行: クエリ='{query}', 結果数={count}")
             search_results = self.brave_search.search(query, count)
             return search_results
         except Exception as e:
@@ -176,6 +250,8 @@ class SmartAssistant:
             Dict[str, Any]: 操作結果
         """
         try:
+            logger.info(f"GitHub操作を実行: タイプ='{operation_type}', パラメータ={parameters}")
+            
             if operation_type == "list_repos":
                 return self.github_client.get_user_repositories()
             
