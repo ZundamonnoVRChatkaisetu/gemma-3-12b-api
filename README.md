@@ -1,8 +1,6 @@
-# Gemma 3 12B カスタムチャットインターフェース
+# Gemma 3 カスタムチャットインターフェース
 
-ローカルにGoogle Gemma 3 12Bモデルを構築し、ファイル操作や推論機能を備えたカスタムAPIとして利用できるプロジェクトです。
-
-![Gemma 3 12B API](https://raw.githubusercontent.com/ZundamonnoVRChatkaisetu/gemma-3-12b-api/main/dashboard/public/screenshot.png)
+Ollamaを使って`gemma3:27b`モデルを利用するカスタムチャットインターフェースです。ファイル操作や推論機能を備えています。
 
 ## 主な機能
 
@@ -11,21 +9,21 @@
    - 自然な対話体験
    - ストリーミングレスポンス
 
-2. **ファイル操作機能**
+2. **Ollamaとの統合**
+   - `gemma3:27b`モデルをローカルで実行
+   - Ollama APIを利用したシームレスな統合
+   - 高速なレスポンス
+
+3. **ファイル操作機能**
    - Windowsファイルシステムのブラウズ
    - ファイルの作成・読み込み・編集・削除
    - テキストファイルの内容編集
    - ディレクトリ管理
 
-3. **推論機能**
+4. **推論機能**
    - ステップバイステップの思考プロセス
    - 複雑な問題解決
    - 確信度評価
-
-4. **完全にローカル**
-   - すべての処理がローカル環境で完結
-   - データプライバシーの確保
-   - インターネット接続不要（初回ダウンロード後）
 
 ## プロジェクト構造
 
@@ -38,7 +36,7 @@
 │   │   └── routers/      # API エンドポイント
 │   ├── requirements.txt  # Python 依存関係
 │   └── Dockerfile        # API サーバーのコンテナ化
-└── dashboard/            # Next.js 管理ダッシュボード
+└── dashboard/            # Next.js チャットインターフェース
     ├── src/              # ソースコード
     │   ├── app/          # ページコンポーネント
     │   ├── components/   # UI コンポーネント
@@ -53,10 +51,22 @@
 
 - Python 3.10以上
 - Node.js 20.0.0以上
-- CUDA対応GPU（推奨：NVIDIA GPU、VRAM 24GB以上）
-- Hugging Faceアカウント（Gemmaモデルの利用に必要）
+- [Ollama](https://ollama.ai/)のインストール
+- `gemma3:27b`モデルを事前にOllamaにインストール済み
 
-### 2. APIサーバーのセットアップ
+### 2. Ollamaの準備
+
+Ollamaをインストールし、Gemma 3モデルをダウンロードしてください：
+
+```bash
+# Ollamaのインストールは公式サイトを参照
+# https://ollama.ai/
+
+# Gemma 3モデルのダウンロード
+ollama pull gemma3:27b
+```
+
+### 3. APIサーバーのセットアップ
 
 ```bash
 cd api
@@ -69,20 +79,20 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-.envファイルを編集して、HuggingFaceのトークンを追加します：
+必要に応じて`.env`ファイルを編集してください：
 ```
-HF_TOKEN=あなたのHuggingFaceトークン
+USE_OLLAMA=True
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL_NAME=gemma3:27b
 ```
 
-### 3. APIサーバーの起動
+### 4. APIサーバーの起動
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-初回起動時には、Gemma 3 12Bモデル（約12GB）がダウンロードされます。
-
-### 4. ダッシュボードのセットアップ
+### 5. ダッシュボードのセットアップ
 
 ```bash
 cd dashboard
@@ -100,12 +110,29 @@ npm run dev
 
 ### モデルの設定変更
 
-モデルの動作を調整するには、`api/app/.env`ファイルを編集します：
+`.env`ファイルで、以下の設定を変更できます：
 
-- `USE_4BIT_QUANTIZATION`: メモリ使用量削減のための量子化（デフォルトはTrue）
+- `USE_OLLAMA`: Ollamaを使用するかどうか（`True`/`False`）
+- `OLLAMA_MODEL_NAME`: 使用するOllamaモデル名
 - `MAX_NEW_TOKENS`: 生成する最大トークン数
 - `DEFAULT_TEMPERATURE`: 生成のランダム性（高いほどランダム）
 
+## Hugging Face モードへの切り替え
+
+Ollamaではなく、Hugging Faceのモデルを使用したい場合は、`.env`ファイルで設定を変更してください：
+
+```
+USE_OLLAMA=False
+HF_MODEL_ID=google/gemma-3-12b-it
+HF_TOKEN=your_huggingface_token_here
+```
+
+また、`requirements.txt`の中の関連ライブラリのコメントを解除し、インストールしてください：
+
+```bash
+pip install accelerate torch transformers sentencepiece langchain bitsandbytes optimum
+```
+
 ## ライセンス
 
-このプロジェクトのコードはMITライセンスで提供されています。Gemmaモデル自体はGoogleのライセンスが適用されます。詳細は[Gemma 3のライセンス](https://huggingface.co/google/gemma-3-12b-it)をご確認ください。
+このプロジェクトのコードはMITライセンスで提供されています。Gemmaモデル自体はGoogleのライセンスが適用されます。
