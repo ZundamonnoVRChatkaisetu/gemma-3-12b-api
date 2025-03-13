@@ -7,7 +7,7 @@ requests>=2.31.0
 numpy>=1.25.0
 tqdm>=4.66.0
 
-# HuggingFace関連（Ollamaを使う場合は不要）
+# HuggingFace (not needed for Ollama mode)
 # accelerate>=0.27.0
 # torch>=2.2.0
 # transformers>=4.38.0
