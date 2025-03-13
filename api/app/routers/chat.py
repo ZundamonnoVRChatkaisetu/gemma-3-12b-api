@@ -6,7 +6,7 @@ import time
 import json
 
 from ..models.chat_model import get_chat_model, Message as ChatMessage
-from ..models.gemma_model import get_gemma_model
+from ..models.model_factory import get_model, get_tokenizer
 from ..models.files_assistant import get_files_assistant
 from ..models.schemas import ChatCompletionRequest, ChatCompletionResponse, Message
 from ..core.dependencies import check_rate_limit
@@ -19,7 +19,7 @@ router = APIRouter()
     "/chat/completions", 
     response_model=ChatCompletionResponse,
     summary="チャット応答を生成する",
-    description="Gemma 3 12B モデルを使用してチャット応答を生成します",
+    description="モデルを使用してチャット応答を生成します",
     dependencies=[Depends(check_rate_limit)],
 )
 async def chat_completion(request: Request, data: ChatCompletionRequest):
@@ -37,7 +37,8 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
     
     try:
         chat_model = get_chat_model()
-        gemma_model = get_gemma_model()
+        model = get_model()
+        tokenizer = get_tokenizer()
         
         # メッセージリストをChatMessageオブジェクトに変換
         chat_messages = [
@@ -101,8 +102,9 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
         if data.stream:
             async def streaming_generator():
                 try:
-                    for text_chunk in chat_model.generate_response(
-                        messages=chat_messages,
+                    prompt = chat_model.format_prompt(chat_messages)
+                    for text_chunk in model.generate_text(
+                        prompt=prompt,
                         max_tokens=data.max_tokens,
                         temperature=data.temperature,
                         top_p=data.top_p,
@@ -121,8 +123,10 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                 media_type="text/event-stream",
             )
         else:
-            response_text = chat_model.generate_response(
-                messages=chat_messages,
+            # プロンプトを整形してモデルに送信
+            prompt = chat_model.format_prompt(chat_messages)
+            response_text = model.generate_text(
+                prompt=prompt,
                 max_tokens=data.max_tokens,
                 temperature=data.temperature,
                 top_p=data.top_p,
@@ -130,11 +134,14 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                 stream=False,
             )
             
-            # トークン使用量の計算
-            # 簡易的な実装のため、実際のトークナイザーで計算する
-            prompt_text = chat_model.format_prompt(chat_messages)
-            input_tokens = len(gemma_model.tokenizer.encode(prompt_text))
-            output_tokens = len(gemma_model.tokenizer.encode(response_text))
+            # トークン使用量の計算（これは推定です）
+            try:
+                input_tokens = len(tokenizer.encode(prompt))
+                output_tokens = len(tokenizer.encode(response_text))
+            except:
+                # トークン化に失敗した場合、単語数で代用
+                input_tokens = len(prompt.split())
+                output_tokens = len(response_text.split())
             
             # レスポンスの作成
             response = ChatCompletionResponse(
