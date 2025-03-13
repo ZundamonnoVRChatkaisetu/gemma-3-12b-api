@@ -1,6 +1,7 @@
 import logging
 import re
 import json
+import datetime
 from typing import Dict, List, Any, Optional, Tuple
 
 from .chat_model import get_chat_model, Message
@@ -58,6 +59,11 @@ class SmartAssistant:
         """
         logger.debug(f"Web検索意図検出: '{user_message}'")
         
+        # 特殊な日付クエリのチェック
+        date_keywords = ["今日の日付", "今日は何日", "今日は"]
+        if any(keyword in user_message for keyword in date_keywords):
+            return True, "今日の日付"
+
         # 明示的な検索キーワードを確認
         search_keywords = ["検索", "調べて", "教えて", "知りたい", "最新の", "情報"]
         if any(keyword in user_message for keyword in search_keywords):
@@ -228,6 +234,23 @@ class SmartAssistant:
         """
         try:
             logger.info(f"Web検索を実行: クエリ='{query}', 結果数={count}")
+            
+            # 特殊クエリの処理
+            if query == "今日の日付":
+                today = datetime.datetime.now()
+                formatted_date = today.strftime("%Y年%m月%d日")
+                
+                return {
+                    "success": True,
+                    "query": query,
+                    "special_data": {
+                        "type": "date",
+                        "value": formatted_date
+                    },
+                    "results": []
+                }
+            
+            # 通常の検索処理
             search_results = self.brave_search.search(query, count)
             return search_results
         except Exception as e:
@@ -338,6 +361,13 @@ class SmartAssistant:
         if not search_results["success"]:
             return f"検索エラー: {search_results.get('message', '不明なエラー')}"
         
+        # 特殊データ型の処理
+        if "special_data" in search_results:
+            special_data = search_results["special_data"]
+            
+            if special_data["type"] == "date":
+                return f"今日は{special_data['value']}です。"
+        
         # 検索結果を整形
         formatted_results = self.brave_search.format_results(search_results)
         
@@ -350,9 +380,12 @@ class SmartAssistant:
 検索結果:
 {formatted_results}
 
-検索結果の情報を適切に引用しながら、わかりやすく回答してください。
-検索結果にない情報については、あなたの知識を活用して補足することができますが、
-不確かな情報は提供せず、検索結果に基づいた事実のみを伝えてください。
+検索結果の情報に基づいて回答を作成してください。検索結果が示している事実と一致する回答をする必要があります。
+検索結果に明示的に含まれていない情報は提供しないでください。もし検索結果に十分な情報がない場合は、
+その旨を伝え、どのような情報が不足しているかを説明してください。
+
+これは事実に基づく回答を必要とする質問なので、検索結果からの情報を正確に伝えることが最も重要です。
+検索結果に含まれる情報だけを使って回答してください。
 
 ユーザーへの回答:"""
 
