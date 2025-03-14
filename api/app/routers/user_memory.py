@@ -87,11 +87,19 @@ def detect_memory_intent(text: str) -> tuple[bool, Optional[str], Optional[str]]
     Returns:
         (is_memory_op, operation, content)のタプル
         - is_memory_op: 記憶操作かどうか
-        - operation: 操作タイプ (store/retrieve/forget)
+        - operation: 操作タイプ (store/retrieve/forget/list_all)
         - content: 操作対象の内容
     """
     # テキストを小文字に変換して前処理
     text_lower = text.lower()
+    
+    # すべての記憶を一覧表示する意図を検出
+    if any(phrase in text_lower for phrase in [
+        "覚えていることを教えて", "覚えていることを一覧表示", "覚えていることをリストアップ",
+        "記憶していることを教えて", "記憶一覧", "メモリーリスト", "全ての記憶", "すべての記憶",
+        "記憶を見せて", "覚えていることは何", "何を覚えている", "何を記憶している"
+    ]):
+        return True, "list_all", None
     
     # 記憶保存の意図を検出（「〇〇を覚えて」「〇〇を記憶して」など）
     if "を覚えて" in text_lower or "を記憶して" in text_lower:
