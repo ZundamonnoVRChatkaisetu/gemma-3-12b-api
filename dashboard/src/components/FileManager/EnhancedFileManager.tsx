@@ -155,12 +155,8 @@ const fileCategories = [
 ];
 
 // デフォルトのクイックアクセス項目
-const defaultQuickAccessItems: PinnedFolder[] = [
-  { path: "", name: "ホーム", isQuickAccess: true },
-  { path: "Documents", name: "ドキュメント", isQuickAccess: true },
-  { path: "Pictures", name: "画像", isQuickAccess: true },
-  { path: "Downloads", name: "ダウンロード", isQuickAccess: true },
-];
+// デフォルトのクイックアクセス項目（空の配列に変更）
+const defaultQuickAccessItems: PinnedFolder[] = [];
 
 // EnhancedFileManagerコンポーネント
 const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
