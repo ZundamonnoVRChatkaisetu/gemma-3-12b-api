@@ -54,6 +54,8 @@ class ChatCompletionRequest(BaseModel):
     top_p: Optional[float] = Field(None, description="top-p サンプリングのパラメータ", ge=0.0, le=1.0)
     top_k: Optional[int] = Field(None, description="top-k サンプリングのパラメータ", ge=1, le=100)
     stream: Optional[bool] = Field(False, description="ストリーミング生成を行うかどうか")
+    session_id: Optional[str] = Field(None, description="セッションID (メモリ機能使用時)")
+    session_title: Optional[str] = Field(None, description="セッションタイトル (新規セッション作成時)")
     
     @field_validator('messages')
     def validate_messages(cls, v):
@@ -69,6 +71,7 @@ class ChatCompletionResponse(BaseModel):
     """
     message: Message = Field(..., description="アシスタントの応答メッセージ")
     usage: Dict[str, Any] = Field(..., description="使用量情報")
+    session_id: Optional[str] = Field(None, description="セッションID")
 
 class EmbeddingRequest(BaseModel):
     """
@@ -107,3 +110,22 @@ class HealthResponse(BaseModel):
     status: str = Field(..., description="サービスの状態")
     version: str = Field(..., description="APIバージョン")
     model_loaded: bool = Field(..., description="モデルが読み込まれているかどうか")
+
+class MemorySettings(BaseModel):
+    """
+    メモリ設定のスキーマ
+    """
+    memory_enabled: bool = Field(True, description="メモリ機能の有効・無効")
+    max_context_messages: int = Field(20, description="会話履歴で保持する最大メッセージ数", ge=1, le=100)
+    auto_save_for_training: bool = Field(True, description="質の高い会話を自動的にトレーニングデータとして保存するか")
+    quality_threshold: int = Field(7, description="会話品質の閾値（1-10、高いほど良質）", ge=1, le=10)
+
+class SessionInfo(BaseModel):
+    """
+    セッション情報のスキーマ
+    """
+    session_id: str = Field(..., description="セッションID")
+    title: str = Field(..., description="セッションタイトル")
+    created_at: str = Field(..., description="作成日時")
+    updated_at: str = Field(..., description="更新日時")
+    message_count: Optional[int] = Field(None, description="メッセージ数")
