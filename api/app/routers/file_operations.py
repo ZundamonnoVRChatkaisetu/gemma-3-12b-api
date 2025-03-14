@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+# ロギングレベルをDEBUGに設定して詳細なログを出力
+logger.setLevel(logging.DEBUG)
 
 router = APIRouter()
 
@@ -107,20 +109,27 @@ class FilePropertiesResponse(BaseModel):
 # ユーザーのホームディレクトリからの相対パス
 USER_HOME = os.path.expanduser("~")
 
-# 初期アクセス先をC:ドライブに設定
 # Windowsの場合はC:ドライブをデフォルトに設定
-if os.name == 'nt' and os.path.exists("C:"):
-    DEFAULT_BASE_DIR = "C:"
+if os.name == 'nt':
+    # C:ドライブ直下にアクセスできるように設定
+    DEFAULT_BASE_DIR = "C:\\"
+    
+    # アクセス可能なディレクトリリスト
+    ALLOWED_DIRS = ["C:\\"]
+    
+    logger.debug(f"Windows環境を検出: DEFAULT_BASE_DIR={DEFAULT_BASE_DIR}, ALLOWED_DIRS={ALLOWED_DIRS}")
 else:
-    # Windowsでない場合や、C:ドライブがない場合は従来通りDocumentsを使用
+    # Windowsでない場合は従来通りDocumentsを使用
     DEFAULT_BASE_DIR = os.path.join(USER_HOME, "Documents")
     if not os.path.exists(DEFAULT_BASE_DIR):
         # Documentsが存在しない場合は、ホームディレクトリ直下に作業ディレクトリを作成
         DEFAULT_BASE_DIR = os.path.join(USER_HOME, "gemma_workspace")
         os.makedirs(DEFAULT_BASE_DIR, exist_ok=True)
-
-# アクセス可能なディレクトリリスト（ここに複数設定可能）
-ALLOWED_DIRS = [DEFAULT_BASE_DIR, "C:"]
+    
+    # アクセス可能なディレクトリリスト
+    ALLOWED_DIRS = [DEFAULT_BASE_DIR]
+    
+    logger.debug(f"UNIX環境を検出: DEFAULT_BASE_DIR={DEFAULT_BASE_DIR}, ALLOWED_DIRS={ALLOWED_DIRS}")
 
 # アクセス禁止パスパターンのリスト（正規表現）
 BLOCKED_PATH_PATTERNS = [
@@ -222,14 +231,28 @@ def get_file_info(path, base_dir):
         stat_info = os.stat(path)
         is_dir = os.path.isdir(path)
         name = os.path.basename(path)
-        rel_path = os.path.relpath(path, base_dir)
+        
+        # 相対パスの作成（ルートドライブの場合の特別処理）
+        if os.name == 'nt' and base_dir.startswith('C:\\') and path.startswith('C:\\'):
+            if path == 'C:\\':
+                rel_path = ''
+            else:
+                # C:\からの相対パスを作成
+                rel_path = path[3:]  # "C:\"の長さは3
+                if rel_path.startswith('\\'):
+                    rel_path = rel_path[1:]  # 先頭の\を削除
+        else:
+            # 通常の相対パス作成
+            rel_path = os.path.relpath(path, base_dir)
         
         # Windowsでは隠しファイル属性を確認
         is_hidden = False
         if os.name == 'nt':
             try:
+                import win32api
+                import win32con
                 attrs = win32api.GetFileAttributes(path)
-                is_hidden = attrs & win32con.FILE_ATTRIBUTE_HIDDEN
+                is_hidden = bool(attrs & win32con.FILE_ATTRIBUTE_HIDDEN)
             except:
                 # win32apiが利用できない場合、ドットで始まるファイルを隠しファイルとみなす
                 is_hidden = name.startswith('.')
@@ -264,6 +287,27 @@ def generate_breadcrumbs(path, base_dir):
     if not path or path == ".":
         return [{"name": "Home", "path": ""}]
     
+    # Windowsの場合の特殊処理
+    if os.name == 'nt' and base_dir.startswith('C:\\'):
+        parts = []
+        current_path = path.replace('\\', '/')
+        if current_path:
+            parts = current_path.strip('/').split('/')
+            
+        breadcrumbs = [{"name": "C:", "path": ""}]
+        current_path = ""
+        
+        for part in parts:
+            if part:
+                if current_path:
+                    current_path = f"{current_path}/{part}"
+                else:
+                    current_path = part
+                breadcrumbs.append({"name": part, "path": current_path})
+                
+        return breadcrumbs
+    
+    # 通常のUNIX系のパス処理
     parts = path.split(os.sep)
     breadcrumbs = [{"name": "Home", "path": ""}]
     
@@ -282,14 +326,38 @@ def validate_path(path: str) -> str:
     """
     # 空のパスの場合はデフォルトのベースディレクトリを使用
     if not path:
+        logger.debug(f"空のパスが指定されました。デフォルトパスを使用: {DEFAULT_BASE_DIR}")
         return DEFAULT_BASE_DIR
     
-    # 相対パスを絶対パスに変換
-    abs_path = os.path.abspath(os.path.join(DEFAULT_BASE_DIR, path))
+    logger.debug(f"受信したパス: {path}")
+    
+    # Windowsの場合の特殊処理
+    if os.name == 'nt':
+        # C:ドライブ対応（スラッシュを正規化）
+        path = path.replace('/', '\\')
+        
+        # パスがCドライブのルートまたはその中のファイルなのか確認
+        if path == '' or path == '.' or path.lower() == 'c:':
+            logger.debug("Cドライブのルートを返します")
+            return "C:\\"
+        
+        # 既に絶対パスの場合
+        if path.startswith('C:\\') or path.startswith('c:\\'):
+            abs_path = path
+        else:
+            # 相対パスをCドライブからの絶対パスに変換
+            abs_path = os.path.normpath(os.path.join(DEFAULT_BASE_DIR, path))
+        
+        logger.debug(f"変換された絶対パス: {abs_path}")
+    else:
+        # UNIX系の場合は通常の処理
+        abs_path = os.path.abspath(os.path.join(DEFAULT_BASE_DIR, path))
+        logger.debug(f"UNIX変換された絶対パス: {abs_path}")
     
     # ブロックされたパスパターンをチェック
     for pattern in BLOCKED_PATH_PATTERNS:
         if re.search(pattern, abs_path, re.IGNORECASE):
+            logger.warning(f"アクセス制限されたパスパターンが検出されました: {pattern}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"セキュリティ上の理由からこのパスへのアクセスは制限されています: '{path}'"
@@ -300,10 +368,12 @@ def validate_path(path: str) -> str:
     for allowed_dir in ALLOWED_DIRS:
         if abs_path.startswith(allowed_dir):
             is_allowed = True
+            logger.debug(f"許可されたディレクトリ内のパス: {abs_path} (許可: {allowed_dir})")
             break
     
     if not is_allowed:
-        allowed_paths = ", ".join([d if d == "C:" else os.path.relpath(d, USER_HOME) for d in ALLOWED_DIRS])
+        allowed_paths = ", ".join(ALLOWED_DIRS)
+        logger.warning(f"許可されていないパスへのアクセス試行: {abs_path}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"アクセスが許可されたディレクトリは '{allowed_paths}' のみです。"
@@ -322,19 +392,25 @@ async def list_files(
     指定されたディレクトリ内のファイルとディレクトリを一覧表示します。
     """
     try:
+        logger.debug(f"ファイル一覧取得リクエスト: path={path}, sort_by={sort_by}, sort_desc={sort_desc}, show_hidden={show_hidden}")
+        
         abs_path = validate_path(path)
+        logger.debug(f"検証済み絶対パス: {abs_path}")
         
         if not os.path.exists(abs_path):
+            logger.warning(f"指定されたパスが存在しません: {abs_path}")
             # パスが存在しない場合、デフォルトディレクトリを作成して返す
             if abs_path == DEFAULT_BASE_DIR:
+                logger.info(f"デフォルトディレクトリを作成します: {DEFAULT_BASE_DIR}")
                 os.makedirs(DEFAULT_BASE_DIR, exist_ok=True)
             else:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="指定されたパスが見つかりませんでした"
+                    detail=f"指定されたパスが見つかりませんでした: {path}"
                 )
         
         if not os.path.isdir(abs_path):
+            logger.warning(f"指定されたパスはディレクトリではありません: {abs_path}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="指定されたパスはディレクトリではありません"
@@ -347,28 +423,36 @@ async def list_files(
         
         try:
             # ディレクトリのスキャンを試みる
-            with os.scandir(abs_path) as entries:
-                for entry in entries:
-                    try:
-                        file_info = get_file_info(entry.path, DEFAULT_BASE_DIR)
-                        if file_info:
-                            # 隠しファイルのフィルタリング
-                            if not show_hidden and file_info["is_hidden"]:
-                                continue
-                                
-                            files.append(FileInfo(**file_info))
+            logger.debug(f"ディレクトリをスキャンします: {abs_path}")
+            entries = []
+            with os.scandir(abs_path) as scanner:
+                for entry in scanner:
+                    entries.append(entry)
+                    
+            logger.debug(f"スキャン結果: {len(entries)}個のエントリが見つかりました")
+            
+            for entry in entries:
+                try:
+                    file_info = get_file_info(entry.path, DEFAULT_BASE_DIR)
+                    if file_info:
+                        # 隠しファイルのフィルタリング
+                        if not show_hidden and file_info["is_hidden"]:
+                            continue
                             
-                            if file_info["is_dir"]:
-                                total_dirs += 1
-                            else:
-                                total_files += 1
-                                total_size += file_info["size"]
-                    except PermissionError:
-                        # 個別のエントリにアクセスできない場合はスキップ
-                        logger.warning(f"アクセス権限がないため、エントリをスキップします: {entry.path}")
-                        continue
+                        files.append(FileInfo(**file_info))
+                        
+                        if file_info["is_dir"]:
+                            total_dirs += 1
+                        else:
+                            total_files += 1
+                            total_size += file_info["size"]
+                except PermissionError:
+                    # 個別のエントリにアクセスできない場合はスキップ
+                    logger.warning(f"アクセス権限がないため、エントリをスキップします: {entry.path}")
+                    continue
         except PermissionError:
             # ディレクトリ全体にアクセスできない場合
+            logger.error(f"ディレクトリへのアクセス権限がありません: {abs_path}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="このディレクトリを読み取る権限がありません"
@@ -385,11 +469,17 @@ async def list_files(
         # 親ディレクトリのパスを計算
         parent_dir = None
         if path and path != ".":
-            parent_path = os.path.dirname(path)
-            parent_dir = parent_path if parent_path else ""
+            if os.name == 'nt' and path.replace('/', '\\') == 'C:\\':
+                # Cドライブのルートの場合は親ディレクトリなし
+                parent_dir = None
+            else:
+                parent_path = os.path.dirname(path)
+                parent_dir = parent_path if parent_path else ""
         
         # パンくずリストを生成
         breadcrumbs = generate_breadcrumbs(path, DEFAULT_BASE_DIR)
+        
+        logger.debug(f"レスポース準備: files={len(files)}, total_files={total_files}, total_dirs={total_dirs}")
         
         return FileListResponse(
             files=files,
@@ -404,7 +494,7 @@ async def list_files(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"ファイルの一覧表示中にエラーが発生しました: {str(e)}")
+        logger.error(f"ファイルの一覧表示中に予期しないエラーが発生しました: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"ファイルの一覧表示中にエラーが発生しました: {str(e)}"
