@@ -1,77 +1,218 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  FileText, Folder, ArrowUp, RefreshCw, Plus, Upload, Download, Edit, Trash, 
+  Copy, Scissor, Search, Info, MoreHorizontal, X, Check, Save, Image, File,
+  FileCode, FileArchive, FilePdf, FileWord, FileExcel, FilePowerpoint, FileAudio, FileVideo,
+  ChevronRight, ChevronDown, Grid, List, Filter, SortAsc, SortDesc, Home, Eye, EyeOff, 
+  ExternalLink, HelpCircle, Loader2, Maximize2, Minimize2
+} from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { toast } from '@/components/ui/use-toast';
-
-// 型定義とサブコンポーネントをインポート
-import { FileInfo, FileListResponse, FileContentResponse, FileManagerPreferences } from './types';
-import { FileIcon } from './FileManagerIcons';
-import { FileListView, FileIconsView, FileDetailsView } from './FileManagerViews';
+import { 
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, 
+  DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuGroup,
+  DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
+  DropdownMenuShortcut,
+} from '@/components/ui/dropdown-menu';
 import {
-  DeleteDialog, RenameDialog, MoveDialog, CopyDialog, NewFolderDialog,
-  NewFileDialog, UploadDialog, PropertiesDialog, FileViewer, PreferencesDialog,
-  KeyboardShortcutsHelp
-} from './FileManagerDialogs';
-import { ContextMenu } from './FileManagerContextMenu';
-import { Toolbar } from './FileManagerToolbar';
-import { BreadcrumbNav, StatusBar } from './FileManagerNavigation';
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription,
+  DialogClose
+} from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { toast } from '@/components/ui/use-toast';
+import { Progress } from '@/components/ui/progress';
+
+// ファイル情報の型定義
+interface FileInfo {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  size?: number;
+  size_formatted?: string;
+  modified?: string;
+  created?: string;
+  mime_type?: string;
+  extension?: string;
+  icon?: string;
+  is_hidden?: boolean;
+}
+
+// ファイルリストレスポンスの型定義
+interface FileListResponse {
+  files: FileInfo[];
+  current_dir: string;
+  parent_dir?: string;
+  total_size: number;
+  total_files: number;
+  total_dirs: number;
+  breadcrumbs: { name: string; path: string }[];
+}
+
+// ファイル内容レスポンスの型定義
+interface FileContentResponse {
+  content: string;
+  path: string;
+  mime_type: string;
+  size: number;
+  size_formatted?: string;
+  modified: string;
+}
+
+// プロパティの定義
+interface EnhancedFileManagerProps {
+  onFileSelect?: (file: FileInfo, content?: string) => void;
+  allowMultiSelect?: boolean;
+  initialPath?: string;
+  maxHeight?: string;
+  showToolbar?: boolean;
+  className?: string;
+}
+
+// カスタムカラースキーム
+const colors = {
+  primary: {
+    light: '#E6F2FF',
+    main: '#2E7BF6',
+    dark: '#1956B3',
+  },
+  secondary: {
+    light: '#F7F9FC',
+    main: '#EDF2F7',
+    dark: '#CBD5E0',
+  },
+  success: {
+    light: '#E6F6EC',
+    main: '#38A169',
+    dark: '#276749',
+  },
+  error: {
+    light: '#FFF5F5',
+    main: '#E53E3E',
+    dark: '#9B2C2C',
+  },
+  warning: {
+    light: '#FFFBEB',
+    main: '#ECC94B',
+    dark: '#B7791F',
+  },
+  info: {
+    light: '#E6FFFA',
+    main: '#38B2AC',
+    dark: '#2C7A7B',
+  },
+  text: {
+    primary: '#1A202C',
+    secondary: '#4A5568',
+    disabled: '#A0AEC0',
+  },
+  background: {
+    default: '#FFFFFF',
+    paper: '#F7FAFC',
+    hover: '#EDF2F7',
+  },
+  divider: '#E2E8F0',
+};
+
+// ファイルタイプのカテゴリ一覧
+const fileCategories = [
+  { key: 'all', label: '全て', icon: <File size={16} /> },
+  { key: 'document', label: '文書', icon: <FileText size={16} /> },
+  { key: 'image', label: '画像', icon: <Image size={16} /> },
+  { key: 'video', label: '動画', icon: <FileVideo size={16} /> },
+  { key: 'audio', label: '音声', icon: <FileAudio size={16} /> },
+  { key: 'archive', label: '圧縮', icon: <FileArchive size={16} /> },
+  { key: 'code', label: 'コード', icon: <FileCode size={16} /> },
+];
 
 // EnhancedFileManagerコンポーネント
-const EnhancedFileManager: React.FC = () => {
+const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
+  onFileSelect,
+  allowMultiSelect = false,
+  initialPath = '',
+  maxHeight = '80vh',
+  showToolbar = true,
+  className = '',
+}) => {
   // 状態管理
-  const [currentPath, setCurrentPath] = useState('');
+  const [currentPath, setCurrentPath] = useState(initialPath);
   const [fileList, setFileList] = useState<FileListResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'icons' | 'details'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'grid' | 'detail'>('detail');
   const [sortBy, setSortBy] = useState('name');
   const [sortDesc, setSortDesc] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<FileInfo[]>([]);
-  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
-  const [clipboardFiles, setClipboardFiles] = useState<{ files: FileInfo[], operation: 'copy' | 'cut' } | null>(null);
+  const [filterCategory, setFilterCategory] = useState('all');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [rightClickedFile, setRightClickedFile] = useState<FileInfo | null>(null);
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number, y: number } | null>(null);
-  const dropzoneRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [clipboard, setClipboard] = useState<{action: 'copy' | 'cut', files: FileInfo[]} | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileManagerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // ファイル操作関連の状態
-  const [fileContent, setFileContent] = useState<FileContentResponse | null>(null);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editedContent, setEditedContent] = useState('');
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showRenameDialog, setShowRenameDialog] = useState(false);
-  const [showMoveDialog, setShowMoveDialog] = useState(false);
-  const [showCopyDialog, setShowCopyDialog] = useState(false);
-  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
-  const [showNewFileDialog, setShowNewFileDialog] = useState(false);
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [showPropertiesDialog, setShowPropertiesDialog] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [destination, setDestination] = useState('');
-  const [newFolderName, setNewFolderName] = useState('');
-  const [newFileName, setNewFileName] = useState('');
-  const [newFileContent, setNewFileContent] = useState('');
-  const [uploadFiles, setUploadFiles] = useState<FileList | null>(null);
-
-  // プリファレンス
-  const [preferences, setPreferences] = useState<FileManagerPreferences>({
-    theme: 'system',
-    showHiddenFiles: false,
-    iconSize: 48,
-    defaultView: 'list',
-    confirmDelete: true,
-    showExtensions: true,
-    showStatusBar: true,
-    sortBy: 'name',
-    sortDirection: 'asc',
-  });
-  const [showPreferences, setShowPreferences] = useState(false);
+  // ショートカットキー
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!fileManagerRef.current) return;
+      
+      // フォーカスされている要素を確認
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement instanceof HTMLInputElement || 
+                            activeElement instanceof HTMLTextAreaElement;
+      
+      // 検索ショートカット
+      if (e.ctrlKey && e.key === 'f' && !isInputFocused) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      
+      // 更新ショートカット
+      if (e.key === 'F5') {
+        e.preventDefault();
+        loadFileList(currentPath);
+      }
+      
+      // 選択したファイルを削除
+      if (e.key === 'Delete' && selectedFiles.length > 0 && !isInputFocused) {
+        e.preventDefault();
+        handleBulkDelete();
+      }
+      
+      // Escキーでクリア
+      if (e.key === 'Escape' && !isInputFocused) {
+        e.preventDefault();
+        setSelectedFiles([]);
+        setSelectedFile(null);
+      }
+      
+      // Ctrl+A ですべて選択
+      if (e.ctrlKey && e.key === 'a' && !isInputFocused && allowMultiSelect) {
+        e.preventDefault();
+        if (fileList?.files) {
+          setSelectedFiles(fileList.files);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentPath, selectedFiles, fileList, allowMultiSelect]);
 
   // ファイルリスト読み込み
   const loadFileList = useCallback(async (path = '') => {
@@ -88,7 +229,7 @@ const EnhancedFileManager: React.FC = () => {
       setFileList(data);
       setCurrentPath(path);
       setSelectedFiles([]);
-      setLastSelectedIndex(null);
+      setSelectedFile(null);
     } catch (error) {
       console.error('ファイルリスト取得エラー:', error);
       toast({
@@ -130,7 +271,7 @@ const EnhancedFileManager: React.FC = () => {
       const data = await response.json();
       setFileList(data);
       setSelectedFiles([]);
-      setLastSelectedIndex(null);
+      setSelectedFile(null);
     } catch (error) {
       console.error('検索エラー:', error);
       toast({
@@ -150,44 +291,83 @@ const EnhancedFileManager: React.FC = () => {
     loadFileList(currentPath);
   };
 
-  // ファイルを選択する関数
-  const selectFile = (file: FileInfo, index: number, event: React.MouseEvent) => {
-    // Ctrlキーが押されている場合
-    if (event.ctrlKey) {
-      // すでに選択されている場合、選択解除
-      if (selectedFiles.some(f => f.path === file.path)) {
-        setSelectedFiles(selectedFiles.filter(f => f.path !== file.path));
-      } else {
-        // 選択されていない場合、追加選択
-        setSelectedFiles([...selectedFiles, file]);
-      }
-      setLastSelectedIndex(index);
+  // ファイルアイコンコンポーネント
+  const FileIcon: React.FC<{ file: FileInfo, size?: number }> = ({ file, size = 20 }) => {
+    if (file.is_dir) {
+      return <Folder className={`h-${size/4} w-${size/4} text-yellow-500`} />;
     }
-    // Shiftキーが押されている場合
-    else if (event.shiftKey && lastSelectedIndex !== null && fileList) {
-      const start = Math.min(index, lastSelectedIndex);
-      const end = Math.max(index, lastSelectedIndex);
-      
-      // start から end までの範囲のファイルを選択
-      const newSelection = fileList.files.slice(start, end + 1);
-      
-      // 既存の選択と組み合わせて重複を排除
-      const combinedSelection = [...selectedFiles];
-      newSelection.forEach(f => {
-        if (!combinedSelection.some(existing => existing.path === f.path)) {
-          combinedSelection.push(f);
+    
+    // アイコンの種類に基づいて適切なアイコンを返す
+    switch (file.icon) {
+      case 'file-text':
+        return <FileText className={`h-${size/4} w-${size/4} text-blue-500`} />;
+      case 'file-pdf':
+        return <FilePdf className={`h-${size/4} w-${size/4} text-red-500`} />;
+      case 'file-word':
+        return <FileWord className={`h-${size/4} w-${size/4} text-blue-700`} />;
+      case 'file-excel':
+        return <FileExcel className={`h-${size/4} w-${size/4} text-green-600`} />;
+      case 'file-powerpoint':
+        return <FilePowerpoint className={`h-${size/4} w-${size/4} text-orange-500`} />;
+      case 'file-image':
+        return <Image className={`h-${size/4} w-${size/4} text-purple-500`} />;
+      case 'file-audio':
+        return <FileAudio className={`h-${size/4} w-${size/4} text-pink-500`} />;
+      case 'file-video':
+        return <FileVideo className={`h-${size/4} w-${size/4} text-red-600`} />;
+      case 'file-archive':
+        return <FileArchive className={`h-${size/4} w-${size/4} text-yellow-600`} />;
+      case 'file-code':
+        return <FileCode className={`h-${size/4} w-${size/4} text-green-500`} />;
+      default:
+        const ext = file.extension?.toLowerCase();
+        if (ext) {
+          if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'].includes(ext)) {
+            return <Image className={`h-${size/4} w-${size/4} text-purple-500`} />;
+          } else if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) {
+            return <FileAudio className={`h-${size/4} w-${size/4} text-pink-500`} />;
+          } else if (['mp4', 'webm', 'avi', 'mov', 'mkv'].includes(ext)) {
+            return <FileVideo className={`h-${size/4} w-${size/4} text-red-600`} />;
+          } else if (['zip', 'tar', 'gz', 'rar', '7z'].includes(ext)) {
+            return <FileArchive className={`h-${size/4} w-${size/4} text-yellow-600`} />;
+          } else if (['html', 'css', 'js', 'ts', 'jsx', 'tsx', 'json', 'py', 'java', 'c', 'cpp', 'php', 'rb'].includes(ext)) {
+            return <FileCode className={`h-${size/4} w-${size/4} text-green-500`} />;
+          } else if (['pdf'].includes(ext)) {
+            return <FilePdf className={`h-${size/4} w-${size/4} text-red-500`} />;
+          } else if (['doc', 'docx'].includes(ext)) {
+            return <FileWord className={`h-${size/4} w-${size/4} text-blue-700`} />;
+          } else if (['xls', 'xlsx'].includes(ext)) {
+            return <FileExcel className={`h-${size/4} w-${size/4} text-green-600`} />;
+          } else if (['ppt', 'pptx'].includes(ext)) {
+            return <FilePowerpoint className={`h-${size/4} w-${size/4} text-orange-500`} />;
+          } else if (['txt', 'md', 'rtf'].includes(ext)) {
+            return <FileText className={`h-${size/4} w-${size/4} text-blue-500`} />;
+          }
         }
-      });
-      
-      setSelectedFiles(combinedSelection);
-    }
-    // 通常クリックの場合、単一選択
-    else {
-      setSelectedFiles([file]);
-      setLastSelectedIndex(index);
+        return <File className={`h-${size/4} w-${size/4} text-gray-500`} />;
     }
   };
 
+  // ファイルアクション処理
+  const [fileContent, setFileContent] = useState<FileContentResponse | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const [showNewFileDialog, setShowNewFileDialog] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showPropertiesDialog, setShowPropertiesDialog] = useState(false);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [destination, setDestination] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFileName, setNewFileName] = useState('');
+  const [newFileContent, setNewFileContent] = useState('');
+  const [uploadFiles, setUploadFiles] = useState<FileList | null>(null);
+  
   // ファイルの内容を取得する関数
   const fetchFileContent = async (path: string) => {
     setIsLoading(true);
@@ -207,6 +387,7 @@ const EnhancedFileManager: React.FC = () => {
       setFileContent(data);
       setEditedContent(data.content);
       setIsEditMode(false);
+      return data.content;
     } catch (error) {
       console.error('ファイル読み込みエラー:', error);
       toast({
@@ -214,72 +395,77 @@ const EnhancedFileManager: React.FC = () => {
         description: error instanceof Error ? error.message : 'ファイルの読み込みに失敗しました',
         variant: 'destructive',
       });
+      return null;
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ファイルをダブルクリックで開く関数
-  const openFile = (file: FileInfo) => {
+  // ファイルを開く関数
+  const openFile = async (file: FileInfo) => {
     if (file.is_dir) {
       loadFileList(file.path);
     } else {
-      setSelectedFiles([file]);
-      fetchFileContent(file.path);
+      setSelectedFile(file);
+      const content = await fetchFileContent(file.path);
+      
+      // 外部コールバックがある場合は実行
+      if (onFileSelect && content !== null) {
+        onFileSelect(file, content);
+      }
     }
   };
 
-  // 複数ファイルを削除する関数
-  const deleteFiles = async () => {
-    if (selectedFiles.length === 0) return;
-    
-    setIsLoading(true);
-    let successCount = 0;
-    let failCount = 0;
-    
-    for (const file of selectedFiles) {
-      try {
-        const response = await fetch(`/api/v1/files/delete?path=${encodeURIComponent(file.path)}`, {
-          method: 'DELETE',
-        });
-        
-        if (response.ok) {
-          successCount++;
-        } else {
-          failCount++;
-        }
-      } catch (error) {
-        console.error('削除エラー:', error);
-        failCount++;
-      }
+  // ファイルを選択する関数
+  const toggleFileSelection = (file: FileInfo, ctrlKey = false) => {
+    if (!allowMultiSelect) {
+      setSelectedFile(file);
+      setSelectedFiles([file]);
+      return;
     }
     
-    // 削除が完了したらファイルリストを再読み込み
-    await loadFileList(currentPath);
-    
-    // 結果をトースト通知
-    if (successCount > 0 && failCount === 0) {
-      toast({
-        title: '成功',
-        description: `${successCount}個のアイテムを削除しました`,
-      });
-    } else if (successCount > 0 && failCount > 0) {
-      toast({
-        title: '一部成功',
-        description: `${successCount}個のアイテムを削除しました (${failCount}個の失敗)`,
-        variant: 'destructive',
+    if (ctrlKey) {
+      // Ctrlキーを押しながらの選択の場合は、トグル
+      setSelectedFiles(prev => {
+        const isSelected = prev.some(f => f.path === file.path);
+        if (isSelected) {
+          return prev.filter(f => f.path !== file.path);
+        } else {
+          return [...prev, file];
+        }
       });
     } else {
-      toast({
-        title: 'エラー',
-        description: '削除に失敗しました',
-        variant: 'destructive',
-      });
+      // 通常クリックの場合は、単一選択
+      setSelectedFile(file);
+      setSelectedFiles([file]);
     }
+  };
+
+  // ファイルをフィルタリングする関数
+  const filterFiles = (files: FileInfo[]) => {
+    if (filterCategory === 'all') return files;
     
-    setShowDeleteDialog(false);
-    setSelectedFiles([]);
-    setIsLoading(false);
+    return files.filter(file => {
+      if (file.is_dir) return filterCategory === 'all';
+      
+      const ext = file.extension?.toLowerCase();
+      switch(filterCategory) {
+        case 'document':
+          return ['txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'rtf', 'md'].includes(ext || '');
+        case 'image':
+          return ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'].includes(ext || '');
+        case 'video':
+          return ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv', 'wmv'].includes(ext || '');
+        case 'audio':
+          return ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac'].includes(ext || '');
+        case 'archive':
+          return ['zip', 'tar', 'gz', 'rar', '7z', 'bz2'].includes(ext || '');
+        case 'code':
+          return ['html', 'css', 'js', 'ts', 'jsx', 'tsx', 'json', 'py', 'java', 'c', 'cpp', 'php', 'rb', 'go', 'rs'].includes(ext || '');
+        default:
+          return true;
+      }
+    });
   };
 
   // ファイルを保存する関数
@@ -306,13 +492,18 @@ const EnhancedFileManager: React.FC = () => {
       }
       
       // 更新されたファイル内容を取得
-      await fetchFileContent(fileContent.path);
+      const content = await fetchFileContent(fileContent.path);
       
       setIsEditMode(false);
       toast({
         title: '成功',
         description: 'ファイルを保存しました',
       });
+      
+      // 外部コールバックがある場合は実行
+      if (onFileSelect && selectedFile && content !== null) {
+        onFileSelect(selectedFile, content);
+      }
     } catch (error) {
       console.error('ファイル保存エラー:', error);
       toast({
@@ -325,13 +516,107 @@ const EnhancedFileManager: React.FC = () => {
     }
   };
 
-  // ファイルの名前を変更する関数
-  const renameFile = async () => {
-    if (selectedFiles.length === 0 || !newName.trim()) return;
+  // ファイルまたはフォルダを削除する関数
+  const deleteFile = async () => {
+    if (!selectedFile) return;
     
-    const file = selectedFiles[0];
     setIsLoading(true);
+    try {
+      const response = await fetch(`/api/v1/files/delete?path=${encodeURIComponent(selectedFile.path)}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || '削除に失敗しました');
+      }
+      
+      // 削除が成功したらファイルリストを再読み込み
+      await loadFileList(currentPath);
+      
+      setShowDeleteDialog(false);
+      setSelectedFile(null);
+      setSelectedFiles([]);
+      setFileContent(null);
+      
+      toast({
+        title: '成功',
+        description: `${selectedFile.is_dir ? 'フォルダ' : 'ファイル'}を削除しました`,
+      });
+    } catch (error) {
+      console.error('削除エラー:', error);
+      toast({
+        title: 'エラー',
+        description: error instanceof Error ? error.message : '削除に失敗しました',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 複数ファイルを削除する関数
+  const deleteBulkFiles = async () => {
+    if (!selectedFiles.length) return;
     
+    setIsLoading(true);
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (const file of selectedFiles) {
+        try {
+          const response = await fetch(`/api/v1/files/delete?path=${encodeURIComponent(file.path)}`, {
+            method: 'DELETE',
+          });
+          
+          if (response.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (e) {
+          errorCount++;
+        }
+      }
+      
+      // 削除が成功したらファイルリストを再読み込み
+      await loadFileList(currentPath);
+      
+      setShowBulkDeleteDialog(false);
+      setSelectedFile(null);
+      setSelectedFiles([]);
+      setFileContent(null);
+      
+      if (errorCount === 0) {
+        toast({
+          title: '成功',
+          description: `${successCount}個のアイテムを削除しました`,
+        });
+      } else {
+        toast({
+          title: '一部失敗',
+          description: `${successCount}個のアイテムを削除しました（${errorCount}個の削除に失敗）`,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('一括削除エラー:', error);
+      toast({
+        title: 'エラー',
+        description: 'ファイルの一括削除中にエラーが発生しました',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ファイルまたはフォルダの名前を変更する関数
+  const renameFile = async () => {
+    if (!selectedFile || !newName.trim()) return;
+    
+    setIsLoading(true);
     try {
       const response = await fetch('/api/v1/files/rename', {
         method: 'POST',
@@ -339,7 +624,7 @@ const EnhancedFileManager: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          path: file.path,
+          path: selectedFile.path,
           new_name: newName,
         }),
       });
@@ -354,6 +639,8 @@ const EnhancedFileManager: React.FC = () => {
       
       setShowRenameDialog(false);
       setNewName('');
+      setSelectedFile(null);
+      setSelectedFiles([]);
       
       toast({
         title: '成功',
@@ -371,208 +658,96 @@ const EnhancedFileManager: React.FC = () => {
     }
   };
 
-  // ファイルを移動する関数
-  const moveFiles = async () => {
-    if (selectedFiles.length === 0 || !destination.trim()) return;
+  // ファイルまたはフォルダを移動する関数
+  const moveFile = async () => {
+    if (!selectedFile || !destination.trim()) return;
     
     setIsLoading(true);
-    let successCount = 0;
-    let failCount = 0;
-    
-    for (const file of selectedFiles) {
-      try {
-        const response = await fetch('/api/v1/files/move', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            source: file.path,
-            destination: destination + '/' + file.name,
-          }),
-        });
-        
-        if (response.ok) {
-          successCount++;
-        } else {
-          failCount++;
-        }
-      } catch (error) {
-        console.error('移動エラー:', error);
-        failCount++;
+    try {
+      const response = await fetch('/api/v1/files/move', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source: selectedFile.path,
+          destination: destination,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || '移動に失敗しました');
       }
-    }
-    
-    // 移動が完了したらファイルリストを再読み込み
-    await loadFileList(currentPath);
-    
-    // 結果をトースト通知
-    if (successCount > 0 && failCount === 0) {
+      
+      // 成功したらファイルリストを再読み込み
+      await loadFileList(currentPath);
+      
+      setShowMoveDialog(false);
+      setDestination('');
+      setSelectedFile(null);
+      setSelectedFiles([]);
+      
       toast({
         title: '成功',
-        description: `${successCount}個のアイテムを移動しました`,
+        description: '移動しました',
       });
-    } else if (successCount > 0 && failCount > 0) {
-      toast({
-        title: '一部成功',
-        description: `${successCount}個のアイテムを移動しました (${failCount}個の失敗)`,
-        variant: 'destructive',
-      });
-    } else {
+    } catch (error) {
+      console.error('移動エラー:', error);
       toast({
         title: 'エラー',
-        description: '移動に失敗しました',
+        description: error instanceof Error ? error.message : '移動に失敗しました',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setShowMoveDialog(false);
-    setDestination('');
-    setSelectedFiles([]);
-    setIsLoading(false);
   };
 
-  // ファイルをコピーする関数
-  const copyFiles = async () => {
-    if (selectedFiles.length === 0 || !destination.trim()) return;
+  // ファイルまたはフォルダをコピーする関数
+  const copyFile = async () => {
+    if (!selectedFile || !destination.trim()) return;
     
     setIsLoading(true);
-    let successCount = 0;
-    let failCount = 0;
-    
-    for (const file of selectedFiles) {
-      try {
-        const response = await fetch('/api/v1/files/copy', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            source: file.path,
-            destination: destination + '/' + file.name,
-          }),
-        });
-        
-        if (response.ok) {
-          successCount++;
-        } else {
-          failCount++;
-        }
-      } catch (error) {
-        console.error('コピーエラー:', error);
-        failCount++;
+    try {
+      const response = await fetch('/api/v1/files/copy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source: selectedFile.path,
+          destination: destination,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'コピーに失敗しました');
       }
-    }
-    
-    // コピーが完了したらファイルリストを再読み込み
-    await loadFileList(currentPath);
-    
-    // 結果をトースト通知
-    if (successCount > 0 && failCount === 0) {
+      
+      // 成功したらファイルリストを再読み込み
+      await loadFileList(currentPath);
+      
+      setShowCopyDialog(false);
+      setDestination('');
+      setSelectedFile(null);
+      setSelectedFiles([]);
+      
       toast({
         title: '成功',
-        description: `${successCount}個のアイテムをコピーしました`,
+        description: 'コピーしました',
       });
-    } else if (successCount > 0 && failCount > 0) {
-      toast({
-        title: '一部成功',
-        description: `${successCount}個のアイテムをコピーしました (${failCount}個の失敗)`,
-        variant: 'destructive',
-      });
-    } else {
+    } catch (error) {
+      console.error('コピーエラー:', error);
       toast({
         title: 'エラー',
-        description: 'コピーに失敗しました',
+        description: error instanceof Error ? error.message : 'コピーに失敗しました',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setShowCopyDialog(false);
-    setDestination('');
-    setSelectedFiles([]);
-    setIsLoading(false);
-  };
-
-  // クリップボード操作（コピー/切り取り）
-  const copyToClipboard = (operation: 'copy' | 'cut') => {
-    if (selectedFiles.length === 0) return;
-    
-    setClipboardFiles({
-      files: [...selectedFiles],
-      operation
-    });
-    
-    toast({
-      title: operation === 'copy' ? 'コピー' : '切り取り',
-      description: `${selectedFiles.length}個のアイテムをクリップボードに${operation === 'copy' ? 'コピー' : '切り取り'}しました`,
-    });
-  };
-
-  // クリップボードからの貼り付け
-  const pasteFromClipboard = async () => {
-    if (!clipboardFiles || clipboardFiles.files.length === 0) return;
-    
-    setIsLoading(true);
-    let successCount = 0;
-    let failCount = 0;
-    
-    for (const file of clipboardFiles.files) {
-      try {
-        // コピーまたは移動操作を実行
-        const endpoint = clipboardFiles.operation === 'copy' ? '/api/v1/files/copy' : '/api/v1/files/move';
-        const destinationPath = currentPath ? `${currentPath}/${file.name}` : file.name;
-        
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            source: file.path,
-            destination: destinationPath,
-          }),
-        });
-        
-        if (response.ok) {
-          successCount++;
-        } else {
-          failCount++;
-        }
-      } catch (error) {
-        console.error(`${clipboardFiles.operation === 'copy' ? 'コピー' : '移動'}エラー:`, error);
-        failCount++;
-      }
-    }
-    
-    // 操作が完了したらファイルリストを再読み込み
-    await loadFileList(currentPath);
-    
-    // 切り取りの場合はクリップボードをクリア
-    if (clipboardFiles.operation === 'cut' && successCount > 0) {
-      setClipboardFiles(null);
-    }
-    
-    // 結果をトースト通知
-    if (successCount > 0 && failCount === 0) {
-      toast({
-        title: '成功',
-        description: `${successCount}個のアイテムを${clipboardFiles.operation === 'copy' ? 'コピー' : '移動'}しました`,
-      });
-    } else if (successCount > 0 && failCount > 0) {
-      toast({
-        title: '一部成功',
-        description: `${successCount}個のアイテムを${clipboardFiles.operation === 'copy' ? 'コピー' : '移動'}しました (${failCount}個の失敗)`,
-        variant: 'destructive',
-      });
-    } else {
-      toast({
-        title: 'エラー',
-        description: `${clipboardFiles.operation === 'copy' ? 'コピー' : '移動'}に失敗しました`,
-        variant: 'destructive',
-      });
-    }
-    
-    setIsLoading(false);
   };
 
   // 新しいフォルダを作成する関数
@@ -669,70 +844,71 @@ const EnhancedFileManager: React.FC = () => {
     }
   };
 
-  // 複数ファイルをアップロードする関数
-  const uploadMultipleFiles = async () => {
+  // ファイルをアップロードする関数
+  const handleUpload = async () => {
     if (!uploadFiles || uploadFiles.length === 0) return;
     
     setIsLoading(true);
     setUploadProgress(0);
-    let completed = 0;
-    let successCount = 0;
-    let failCount = 0;
     
-    for (let i = 0; i < uploadFiles.length; i++) {
-      const file = uploadFiles[i];
+    try {
+      let successCount = 0;
+      let errorCount = 0;
       
-      try {
+      for (let i = 0; i < uploadFiles.length; i++) {
+        const file = uploadFiles[i];
         const formData = new FormData();
         formData.append('file', file);
         formData.append('path', currentPath);
         
-        const response = await fetch('/api/v1/files/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (response.ok) {
-          successCount++;
-        } else {
-          failCount++;
+        try {
+          const response = await fetch('/api/v1/files/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (response.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (e) {
+          errorCount++;
         }
-      } catch (error) {
-        console.error('アップロードエラー:', error);
-        failCount++;
+        
+        // 進捗更新
+        setUploadProgress(Math.round(((i + 1) / uploadFiles.length) * 100));
       }
       
-      completed++;
-      setUploadProgress(Math.round((completed / uploadFiles.length) * 100));
-    }
-    
-    // アップロードが完了したらファイルリストを再読み込み
-    await loadFileList(currentPath);
-    
-    // 結果をトースト通知
-    if (successCount > 0 && failCount === 0) {
-      toast({
-        title: '成功',
-        description: `${successCount}個のファイルをアップロードしました`,
-      });
-    } else if (successCount > 0 && failCount > 0) {
-      toast({
-        title: '一部成功',
-        description: `${successCount}個のファイルをアップロードしました (${failCount}個の失敗)`,
-        variant: 'destructive',
-      });
-    } else {
+      // 成功したらファイルリストを再読み込み
+      await loadFileList(currentPath);
+      
+      setShowUploadDialog(false);
+      setUploadFiles(null);
+      
+      if (errorCount === 0) {
+        toast({
+          title: '成功',
+          description: `${successCount}個のファイルをアップロードしました`,
+        });
+      } else {
+        toast({
+          title: '一部失敗',
+          description: `${successCount}個のファイルをアップロードしました（${errorCount}個の失敗）`,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('アップロードエラー:', error);
       toast({
         title: 'エラー',
-        description: 'アップロードに失敗しました',
+        description: 'アップロード中にエラーが発生しました',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
+      setUploadProgress(0);
     }
-    
-    setShowUploadDialog(false);
-    setUploadFiles(null);
-    setUploadProgress(null);
-    setIsLoading(false);
   };
 
   // ファイルをダウンロードする関数
@@ -759,487 +935,1093 @@ const EnhancedFileManager: React.FC = () => {
     }
   };
 
-  // 選択された複数ファイルをダウンロードする関数
-  const downloadSelectedFiles = async () => {
-    const nonDirFiles = selectedFiles.filter(file => !file.is_dir);
+  // クリップボード操作の関数
+  const handleCopy = () => {
+    if (selectedFiles.length === 0) return;
     
-    if (nonDirFiles.length === 0) {
+    setClipboard({
+      action: 'copy',
+      files: [...selectedFiles],
+    });
+    
+    toast({
+      description: `${selectedFiles.length}個のアイテムをクリップボードにコピーしました`,
+    });
+  };
+  
+  const handleCut = () => {
+    if (selectedFiles.length === 0) return;
+    
+    setClipboard({
+      action: 'cut',
+      files: [...selectedFiles],
+    });
+    
+    toast({
+      description: `${selectedFiles.length}個のアイテムを切り取りました`,
+    });
+  };
+  
+  const handlePaste = async () => {
+    if (!clipboard || clipboard.files.length === 0) return;
+    
+    setIsLoading(true);
+    
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (const file of clipboard.files) {
+        const fileName = file.name;
+        const destinationPath = currentPath ? `${currentPath}/${fileName}` : fileName;
+        
+        try {
+          let response;
+          
+          if (clipboard.action === 'copy') {
+            response = await fetch('/api/v1/files/copy', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                source: file.path,
+                destination: destinationPath,
+              }),
+            });
+          } else { // cut
+            response = await fetch('/api/v1/files/move', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                source: file.path,
+                destination: destinationPath,
+              }),
+            });
+          }
+          
+          if (response.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (e) {
+          errorCount++;
+        }
+      }
+      
+      // 切り取りの場合はクリップボードをクリア
+      if (clipboard.action === 'cut') {
+        setClipboard(null);
+      }
+      
+      // 成功したらファイルリストを再読み込み
+      await loadFileList(currentPath);
+      
+      if (errorCount === 0) {
+        toast({
+          title: '成功',
+          description: `${successCount}個のアイテムを${clipboard.action === 'copy' ? 'コピー' : '移動'}しました`,
+        });
+      } else {
+        toast({
+          title: '一部失敗',
+          description: `${successCount}個のアイテムを${clipboard.action === 'copy' ? 'コピー' : '移動'}しました（${errorCount}個の失敗）`,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('貼り付けエラー:', error);
       toast({
-        title: '警告',
-        description: 'ダウンロード可能なファイルが選択されていません',
+        title: 'エラー',
+        description: '貼り付け中にエラーが発生しました',
         variant: 'destructive',
       });
-      return;
-    }
-    
-    // 単一ファイルの場合は直接ダウンロード
-    if (nonDirFiles.length === 1) {
-      downloadFile(nonDirFiles[0]);
-      return;
-    }
-    
-    // 複数ファイルの場合はシーケンシャルにダウンロード
-    for (const file of nonDirFiles) {
-      try {
-        window.open(`/api/v1/files/download?path=${encodeURIComponent(file.path)}`, '_blank');
-        
-        // 少し待って次のダウンロードを開始
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error) {
-        console.error('ダウンロードエラー:', error);
-      }
-    }
-    
-    toast({
-      title: '情報',
-      description: `${nonDirFiles.length}個のファイルのダウンロードを開始しました`,
-    });
-  };
-
-  // すべてのファイルを選択
-  const selectAllFiles = () => {
-    if (!fileList) return;
-    setSelectedFiles([...fileList.files]);
-  };
-
-  // ファイル選択の解除
-  const clearSelection = () => {
-    setSelectedFiles([]);
-    setLastSelectedIndex(null);
-  };
-
-  // ファイルダウンロードのリンクを作成
-  const getDownloadUrl = (file: FileInfo) => {
-    return `/api/v1/files/download?path=${encodeURIComponent(file.path)}`;
-  };
-
-  // フルスクリーン切り替え
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable fullscreen: ${err.message}`);
-      });
-      setIsFullscreen(true);
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-        setIsFullscreen(false);
-      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // fullscreenchangeイベントをリッスン
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, []);
-
-  // 右クリックメニュー表示
-  const handleContextMenu = (event: React.MouseEvent, file?: FileInfo) => {
-    event.preventDefault();
-    
-    // ファイルが指定された場合、そのファイルが選択されていなければ選択する
-    if (file && !selectedFiles.some(f => f.path === file.path)) {
-      setSelectedFiles([file]);
-    }
-    
-    // 右クリックされたファイルを設定
-    setRightClickedFile(file || null);
-    
-    // コンテキストメニューの位置を設定
-    setContextMenuPosition({ x: event.clientX, y: event.clientY });
-  };
-
-  // コンテキストメニューを閉じる
-  const closeContextMenu = () => {
-    setContextMenuPosition(null);
-    setRightClickedFile(null);
-  };
-
-  // コンテキストメニューのアクション実行ハンドラ
-  const handleContextMenuAction = (action: () => void) => {
-    action();
-    closeContextMenu();
-  };
-
-  // ドラッグアンドドロップ処理
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
-    
-    setUploadFiles(e.dataTransfer.files);
-    setShowUploadDialog(true);
-  };
-
-  // プリファレンスを保存
-  const savePreferences = () => {
-    localStorage.setItem('fileManagerPreferences', JSON.stringify(preferences));
-    
-    // プリファレンスを適用
-    setShowHidden(preferences.showHiddenFiles);
-    setViewMode(preferences.defaultView);
-    setSortBy(preferences.sortBy);
-    setSortDesc(preferences.sortDirection === 'desc');
-    
-    // ファイルリストを更新
-    loadFileList(currentPath);
-    
-    setShowPreferences(false);
-    
-    toast({
-      title: '成功',
-      description: '設定を保存しました',
-    });
-  };
-
-  // プリファレンスを読み込み
-  useEffect(() => {
-    const savedPreferences = localStorage.getItem('fileManagerPreferences');
-    if (savedPreferences) {
-      try {
-        const parsedPreferences = JSON.parse(savedPreferences) as FileManagerPreferences;
-        setPreferences(parsedPreferences);
-        
-        // プリファレンスを適用
-        setShowHidden(parsedPreferences.showHiddenFiles);
-        setViewMode(parsedPreferences.defaultView);
-        setSortBy(parsedPreferences.sortBy);
-        setSortDesc(parsedPreferences.sortDirection === 'desc');
-      } catch (error) {
-        console.error('プリファレンスの読み込みエラー:', error);
-      }
-    }
-  }, []);
-
-  // キーボードショートカット
-  useHotkeys('ctrl+a', (e) => {
-    e.preventDefault();
-    selectAllFiles();
-  }, { enableOnFormTags: true });
-
-  useHotkeys('delete', () => {
+  // 一括操作の関数
+  const handleBulkDelete = () => {
     if (selectedFiles.length > 0) {
-      setShowDeleteDialog(true);
+      setShowBulkDeleteDialog(true);
     }
-  });
-
-  useHotkeys('f2', () => {
-    if (selectedFiles.length === 1) {
-      setNewName(selectedFiles[0].name);
-      setShowRenameDialog(true);
-    }
-  });
-
-  useHotkeys('ctrl+c', () => {
-    if (selectedFiles.length > 0) {
-      copyToClipboard('copy');
-    }
-  });
-
-  useHotkeys('ctrl+x', () => {
-    if (selectedFiles.length > 0) {
-      copyToClipboard('cut');
-    }
-  });
-
-  useHotkeys('ctrl+v', () => {
-    if (clipboardFiles) {
-      pasteFromClipboard();
-    }
-  });
-
-  useHotkeys('f5', () => {
-    loadFileList(currentPath);
-  });
-
-  useHotkeys('escape', () => {
-    clearSelection();
-    closeContextMenu();
-  });
+  };
 
   // 初回読み込み
   useEffect(() => {
-    loadFileList('');
-  }, [loadFileList]);
+    loadFileList(initialPath);
+  }, [initialPath, loadFileList]);
+
+  // パンくずリストコンポーネント
+  const BreadcrumbNav: React.FC = () => {
+    if (!fileList || !fileList.breadcrumbs) {
+      return null;
+    }
+    
+    return (
+      <Breadcrumb className="mb-4 text-sm">
+        <BreadcrumbItem>
+          <BreadcrumbLink onClick={() => loadFileList('')} className="flex items-center gap-1">
+            <Home size={14} />
+            ホーム
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        
+        {fileList.breadcrumbs.slice(0, -1).map((item, index) => (
+          <React.Fragment key={index}>
+            <BreadcrumbItem>
+              <BreadcrumbLink onClick={() => loadFileList(item.path)}>
+                {item.name}
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+          </React.Fragment>
+        ))}
+        
+        {fileList.breadcrumbs.length > 0 && (
+          <BreadcrumbItem>
+            <span className="font-medium">
+              {fileList.breadcrumbs[fileList.breadcrumbs.length - 1].name}
+            </span>
+          </BreadcrumbItem>
+        )}
+      </Breadcrumb>
+    );
+  };
+
+  // ツールバーコンポーネント
+  const Toolbar: React.FC = () => (
+    <div className="flex flex-wrap gap-2 mb-4 p-1 rounded-md bg-secondary-light border border-secondary-dark">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => loadFileList(fileList?.parent_dir || '')}
+        disabled={!fileList?.parent_dir}
+      >
+        <ArrowUp className="h-4 w-4 mr-1" />
+        <span className="hidden sm:inline">上へ</span>
+      </Button>
+      
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => loadFileList(currentPath)}
+      >
+        <RefreshCw className="h-4 w-4 mr-1" />
+        <span className="hidden sm:inline">更新</span>
+      </Button>
+      
+      <Separator orientation="vertical" className="h-8" />
+      
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline">
+            <Plus className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">新規</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={() => setShowNewFolderDialog(true)}>
+            <Folder className="h-4 w-4 mr-2" />
+            フォルダ
+            <DropdownMenuShortcut>Ctrl+Shift+N</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowNewFileDialog(true)}>
+            <FileText className="h-4 w-4 mr-2" />
+            ファイル
+            <DropdownMenuShortcut>Ctrl+N</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setShowUploadDialog(true)}
+      >
+        <Upload className="h-4 w-4 mr-1" />
+        <span className="hidden sm:inline">アップロード</span>
+      </Button>
+      
+      <Separator orientation="vertical" className="h-8" />
+      
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" disabled={selectedFiles.length === 0}>
+            <MoreHorizontal className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">操作</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuLabel>ファイル操作</DropdownMenuLabel>
+          <DropdownMenuItem onClick={handleCopy} disabled={selectedFiles.length === 0}>
+            <Copy className="h-4 w-4 mr-2" />
+            コピー
+            <DropdownMenuShortcut>Ctrl+C</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleCut} disabled={selectedFiles.length === 0}>
+            <Scissor className="h-4 w-4 mr-2" />
+            切り取り
+            <DropdownMenuShortcut>Ctrl+X</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handlePaste} disabled={!clipboard}>
+            <FileText className="h-4 w-4 mr-2" />
+            貼り付け
+            <DropdownMenuShortcut>Ctrl+V</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleBulkDelete} disabled={selectedFiles.length === 0} className="text-red-500">
+            <Trash className="h-4 w-4 mr-2" />
+            削除
+            <DropdownMenuShortcut>Delete</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      
+      <div className="flex-grow"></div>
+      
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setIsFullscreen(!isFullscreen)}
+      >
+        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+      </Button>
+      
+      <div className="flex gap-2 items-center">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            ref={searchInputRef}
+            className="pl-8 w-44 md:w-60 h-9"
+            placeholder="検索..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && searchFiles()}
+          />
+          {isSearching && (
+            <X
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 cursor-pointer"
+              onClick={clearSearch}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+  
+  // ファイルリストツールバー（フィルタとビュータイプ）
+  const FileListToolbar: React.FC = () => (
+    <div className="flex justify-between items-center mb-3 px-1">
+      <div className="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" className="gap-1">
+              <Filter className="h-4 w-4" />
+              {fileCategories.find(cat => cat.key === filterCategory)?.label || '全て'}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuLabel>ファイルタイプ</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {fileCategories.map(category => (
+              <DropdownMenuItem 
+                key={category.key}
+                onClick={() => setFilterCategory(category.key)}
+                className="gap-2"
+              >
+                {category.icon}
+                {category.label}
+                {category.key === filterCategory && <Check className="h-4 w-4 ml-auto" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" className="gap-1">
+              {sortDesc ? <SortDesc className="h-4 w-4" /> : <SortAsc className="h-4 w-4" />}
+              {sortBy === 'name' ? '名前' : sortBy === 'size' ? 'サイズ' : '更新日時'}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuLabel>並び替え</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuRadioGroup value={sortBy} onValueChange={(value) => { setSortBy(value); loadFileList(currentPath); }}>
+                <DropdownMenuRadioItem value="name">名前</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="size">サイズ</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="modified">更新日時</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => { setSortDesc(!sortDesc); loadFileList(currentPath); }}>
+              {sortDesc ? '昇順に変更' : '降順に変更'}
+              {sortDesc ? <SortAsc className="h-4 w-4 ml-auto" /> : <SortDesc className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      
+      <div className="flex gap-1">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className={viewMode === 'list' ? 'bg-primary-light text-primary-dark' : ''}
+                onClick={() => setViewMode('list')}
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>リスト表示</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className={viewMode === 'detail' ? 'bg-primary-light text-primary-dark' : ''}
+                onClick={() => setViewMode('detail')}
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>詳細表示</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className={viewMode === 'grid' ? 'bg-primary-light text-primary-dark' : ''}
+                onClick={() => setViewMode('grid')}
+              >
+                <Grid className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>グリッド表示</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className={showHidden ? 'bg-primary-light text-primary-dark' : ''}
+                onClick={() => { setShowHidden(!showHidden); loadFileList(currentPath); }}
+              >
+                {showHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{showHidden ? '隠しファイルを非表示' : '隠しファイルを表示'}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    </div>
+  );
+
+  // ファイルリストコンポーネント（リスト表示）
+  const FileListView: React.FC = () => {
+    if (!fileList) return null;
+    
+    const filteredFiles = filterFiles(fileList.files);
+    
+    return (
+      <div className="rounded-md border">
+        {filteredFiles.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            {isSearching ? '検索結果はありません' : 'ファイルがありません'}
+          </div>
+        ) : (
+          <div className="divide-y">
+            {filteredFiles.map((file) => (
+              <div
+                key={file.path}
+                className={`flex items-center p-3 cursor-pointer hover:bg-secondary-light ${
+                  selectedFiles.some(f => f.path === file.path) ? 'bg-primary-light' : ''
+                }`}
+                onClick={(e) => toggleFileSelection(file, e.ctrlKey)}
+                onDoubleClick={() => openFile(file)}
+              >
+                <div className="flex items-center flex-1 min-w-0">
+                  <div className="mr-3">
+                    <FileIcon file={file} size={20} />
+                  </div>
+                  <div className="truncate">
+                    {file.name}
+                    {file.is_hidden && <Badge variant="outline" className="ml-2 text-xs">隠しファイル</Badge>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ファイルリストコンポーネント（詳細表示）
+  const FileDetailView: React.FC = () => {
+    if (!fileList) return null;
+    
+    const filteredFiles = filterFiles(fileList.files);
+    
+    return (
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-secondary-light">
+              <TableHead className="w-[40%]">名前</TableHead>
+              <TableHead className="w-[15%]">サイズ</TableHead>
+              <TableHead className="w-[15%]">種類</TableHead>
+              <TableHead className="w-[25%]">更新日時</TableHead>
+              <TableHead className="w-[5%]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredFiles.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                  {isSearching ? '検索結果はありません' : 'ファイルがありません'}
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredFiles.map((file) => (
+                <TableRow 
+                  key={file.path} 
+                  className={selectedFiles.some(f => f.path === file.path) ? 'bg-primary-light' : ''}
+                  onClick={(e) => toggleFileSelection(file, e.ctrlKey)}
+                  onDoubleClick={() => openFile(file)}
+                >
+                  <TableCell className="flex items-center gap-2 cursor-pointer">
+                    <FileIcon file={file} />
+                    <span className="truncate">
+                      {file.name}
+                      {file.is_hidden && <Badge variant="outline" className="ml-2 text-xs">隠し</Badge>}
+                    </span>
+                  </TableCell>
+                  <TableCell>{file.size_formatted || '-'}</TableCell>
+                  <TableCell>{file.is_dir ? 'フォルダ' : (file.extension || 'ファイル')}</TableCell>
+                  <TableCell>{file.modified || '-'}</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {!file.is_dir && (
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openFile(file); }}>
+                            <FileText className="h-4 w-4 mr-2" />
+                            開く
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setNewName(file.name); setShowRenameDialog(true); }}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          名前の変更
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setDestination(''); setShowCopyDialog(true); }}>
+                          <Copy className="h-4 w-4 mr-2" />
+                          コピー
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setDestination(''); setShowMoveDialog(true); }}>
+                          <Scissor className="h-4 w-4 mr-2" />
+                          移動
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {!file.is_dir && (
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); downloadFile(file); }}>
+                            <Download className="h-4 w-4 mr-2" />
+                            ダウンロード
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setShowPropertiesDialog(true); }}>
+                          <Info className="h-4 w-4 mr-2" />
+                          プロパティ
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setShowDeleteDialog(true); }} className="text-red-500">
+                          <Trash className="h-4 w-4 mr-2" />
+                          削除
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  // ファイルリストコンポーネント（グリッド表示）
+  const FileGridView: React.FC = () => {
+    if (!fileList) return null;
+    
+    const filteredFiles = filterFiles(fileList.files);
+    
+    return (
+      <div className="rounded-md border p-3">
+        {filteredFiles.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            {isSearching ? '検索結果はありません' : 'ファイルがありません'}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {filteredFiles.map((file) => (
+              <div
+                key={file.path}
+                className={`flex flex-col items-center p-3 rounded-md cursor-pointer ${
+                  selectedFiles.some(f => f.path === file.path) ? 'bg-primary-light' : 'hover:bg-secondary-light'
+                }`}
+                onClick={(e) => toggleFileSelection(file, e.ctrlKey)}
+                onDoubleClick={() => openFile(file)}
+              >
+                <div className="p-2">
+                  <FileIcon file={file} size={40} />
+                </div>
+                <div className="text-center text-sm mt-2 w-full">
+                  <div className="truncate max-w-full">
+                    {file.name}
+                  </div>
+                  {!file.is_dir && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      {file.size_formatted}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ファイルビューアー/エディターコンポーネント
+  const FileViewer: React.FC = () => {
+    if (!fileContent) return null;
+    
+    return (
+      <Dialog open={!!fileContent} onOpenChange={(open) => !open && setFileContent(null)}>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileIcon file={{ name: fileContent.path.split('/').pop() || '', path: fileContent.path, is_dir: false }} />
+              <span className="truncate">{fileContent.path}</span>
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex justify-between items-center mb-3">
+            <div className="text-sm text-gray-500 flex items-center gap-2">
+              <Badge variant="outline">{fileContent.size_formatted || `${fileContent.size} バイト`}</Badge>
+              <Badge variant="outline">更新: {fileContent.modified}</Badge>
+            </div>
+            <div className="flex gap-2">
+              {isEditMode ? (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => setIsEditMode(false)}>
+                    <X className="h-4 w-4 mr-1" />
+                    キャンセル
+                  </Button>
+                  <Button size="sm" onClick={saveFile} disabled={isLoading}>
+                    <Save className="h-4 w-4 mr-1" />
+                    保存
+                  </Button>
+                </>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setIsEditMode(true)}>
+                  <Edit className="h-4 w-4 mr-1" />
+                  編集
+                </Button>
+              )}
+            </div>
+          </div>
+          
+          <ScrollArea className="flex-grow">
+            {isEditMode ? (
+              <textarea
+                className="w-full h-full min-h-[400px] p-3 font-mono text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-main"
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                style={{ resize: 'none' }}
+              />
+            ) : (
+              <pre className="whitespace-pre-wrap p-3 font-mono text-sm rounded-md bg-gray-50">{fileContent.content}</pre>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
+  // 削除確認ダイアログ
+  const DeleteDialog: React.FC = () => (
+    <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {selectedFile?.is_dir ? 'フォルダの削除' : 'ファイルの削除'}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {selectedFile?.name} を削除してもよろしいですか？
+            {selectedFile?.is_dir && ' このフォルダ内のすべてのファイルも削除されます。'}
+            この操作は元に戻せません。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>キャンセル</AlertDialogCancel>
+          <AlertDialogAction onClick={deleteFile} className="bg-red-500 hover:bg-red-600">削除</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+  
+  // 一括削除確認ダイアログ
+  const BulkDeleteDialog: React.FC = () => (
+    <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>複数アイテムの削除</AlertDialogTitle>
+          <AlertDialogDescription>
+            選択された {selectedFiles.length} 個のアイテムを削除してもよろしいですか？
+            この操作は元に戻せません。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>キャンセル</AlertDialogCancel>
+          <AlertDialogAction onClick={deleteBulkFiles} className="bg-red-500 hover:bg-red-600">削除</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  // 名前変更ダイアログ
+  const RenameDialog: React.FC = () => (
+    <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>名前の変更</DialogTitle>
+          <DialogDescription>
+            新しい名前を入力してください
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <label className="block text-sm font-medium mb-2">新しい名前:</label>
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowRenameDialog(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={renameFile} disabled={!newName.trim()}>
+            名前の変更
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  // 移動ダイアログ
+  const MoveDialog: React.FC = () => (
+    <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>移動</DialogTitle>
+          <DialogDescription>
+            移動先のパスを入力してください
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <label className="block text-sm font-medium mb-2">移動先のパス:</label>
+          <Input
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+            placeholder="例: path/to/destination"
+            autoFocus
+          />
+          <p className="text-sm text-gray-500 mt-2">
+            現在のディレクトリからの相対パスを入力してください。
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowMoveDialog(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={moveFile} disabled={!destination.trim()}>
+            移動
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  // コピーダイアログ
+  const CopyDialog: React.FC = () => (
+    <Dialog open={showCopyDialog} onOpenChange={setShowCopyDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>コピー</DialogTitle>
+          <DialogDescription>
+            コピー先のパスを入力してください
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <label className="block text-sm font-medium mb-2">コピー先のパス:</label>
+          <Input
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+            placeholder="例: path/to/destination"
+            autoFocus
+          />
+          <p className="text-sm text-gray-500 mt-2">
+            現在のディレクトリからの相対パスを入力してください。
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowCopyDialog(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={copyFile} disabled={!destination.trim()}>
+            コピー
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  // 新しいフォルダ作成ダイアログ
+  const NewFolderDialog: React.FC = () => (
+    <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>新しいフォルダ</DialogTitle>
+          <DialogDescription>
+            作成するフォルダの名前を入力してください
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <label className="block text-sm font-medium mb-2">フォルダ名:</label>
+          <Input
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowNewFolderDialog(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={createFolder} disabled={!newFolderName.trim()}>
+            作成
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  // 新しいファイル作成ダイアログ
+  const NewFileDialog: React.FC = () => (
+    <Dialog open={showNewFileDialog} onOpenChange={setShowNewFileDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>新しいファイル</DialogTitle>
+          <DialogDescription>
+            作成するファイルの名前と内容を入力してください
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <label className="block text-sm font-medium mb-2">ファイル名:</label>
+          <Input
+            value={newFileName}
+            onChange={(e) => setNewFileName(e.target.value)}
+            className="mb-4"
+            autoFocus
+          />
+          <label className="block text-sm font-medium mb-2">内容:</label>
+          <textarea
+            className="w-full h-32 p-2 border rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary-main"
+            value={newFileContent}
+            onChange={(e) => setNewFileContent(e.target.value)}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowNewFileDialog(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={createFile} disabled={!newFileName.trim()}>
+            作成
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  // ファイルアップロードダイアログ
+  const UploadDialog: React.FC = () => (
+    <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>ファイルアップロード</DialogTitle>
+          <DialogDescription>
+            アップロードするファイルを選択してください
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <label className="block text-sm font-medium mb-2">アップロードするファイル:</label>
+          <Input
+            type="file"
+            onChange={(e) => setUploadFiles(e.target.files)}
+            multiple
+            className="mb-4"
+          />
+          <p className="text-sm text-gray-500 mb-4">
+            アップロード先: {currentPath || '/'}
+          </p>
+          
+          {uploadProgress > 0 && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>アップロード中...</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <Progress value={uploadProgress} />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowUploadDialog(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={handleUpload} disabled={!uploadFiles || uploadFiles.length === 0 || isLoading}>
+            アップロード
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  // ファイルプロパティダイアログ
+  const PropertiesDialog: React.FC = () => {
+    const [properties, setProperties] = useState<any>(null);
+    
+    useEffect(() => {
+      const fetchProperties = async () => {
+        if (!selectedFile) return;
+        
+        try {
+          const response = await fetch(`/api/v1/files/properties?path=${encodeURIComponent(selectedFile.path)}`);
+          
+          if (!response.ok) {
+            throw new Error('プロパティの取得に失敗しました');
+          }
+          
+          const data = await response.json();
+          setProperties(data);
+        } catch (error) {
+          console.error('プロパティ取得エラー:', error);
+          toast({
+            title: 'エラー',
+            description: 'プロパティの取得に失敗しました',
+            variant: 'destructive',
+          });
+        }
+      };
+      
+      if (showPropertiesDialog && selectedFile) {
+        fetchProperties();
+      }
+    }, [selectedFile, showPropertiesDialog]);
+    
+    if (!properties) return null;
+    
+    return (
+      <Dialog open={showPropertiesDialog} onOpenChange={setShowPropertiesDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileIcon file={selectedFile || { name: '', path: '', is_dir: false }} />
+              <span>{properties.name} のプロパティ</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="text-sm font-medium">タイプ:</div>
+              <div className="text-sm">{properties.is_dir ? 'フォルダ' : (properties.mime_type || 'ファイル')}</div>
+              
+              <div className="text-sm font-medium">場所:</div>
+              <div className="text-sm truncate">{properties.path}</div>
+              
+              <div className="text-sm font-medium">サイズ:</div>
+              <div className="text-sm">{properties.size_formatted} ({properties.size.toLocaleString()} バイト)</div>
+              
+              <div className="text-sm font-medium">作成日時:</div>
+              <div className="text-sm">{properties.created}</div>
+              
+              <div className="text-sm font-medium">更新日時:</div>
+              <div className="text-sm">{properties.modified}</div>
+              
+              <div className="text-sm font-medium">最終アクセス:</div>
+              <div className="text-sm">{properties.accessed}</div>
+              
+              {properties.extension && (
+                <>
+                  <div className="text-sm font-medium">拡張子:</div>
+                  <div className="text-sm">{properties.extension}</div>
+                </>
+              )}
+              
+              {properties.owner && (
+                <>
+                  <div className="text-sm font-medium">所有者:</div>
+                  <div className="text-sm">{properties.owner}</div>
+                </>
+              )}
+              
+              {properties.permissions && (
+                <>
+                  <div className="text-sm font-medium">権限:</div>
+                  <div className="text-sm">{properties.permissions}</div>
+                </>
+              )}
+            </div>
+            
+            {properties.attributes && Object.keys(properties.attributes).length > 0 && (
+              <div className="mt-4">
+                <div className="text-sm font-medium mb-1">属性:</div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(properties.attributes).map(([key, value]) => (
+                    value && (
+                      <div key={key} className="text-sm bg-gray-100 px-2 py-1 rounded-md">
+                        {key.replace(/_/g, ' ')}
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowPropertiesDialog(false)}>
+              閉じる
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
+  // ステータスバーコンポーネント
+  const StatusBar: React.FC = () => {
+    if (!fileList) return null;
+    
+    const filteredFiles = filterFiles(fileList.files);
+    
+    return (
+      <div className="text-sm text-gray-500 mt-4 flex justify-between items-center p-2 border-t">
+        <div>
+          {fileList.total_dirs} フォルダ, {fileList.total_files} ファイル
+          {filteredFiles.length !== fileList.files.length && 
+            ` (表示: ${filteredFiles.length})`}
+        </div>
+        <div>
+          {selectedFiles.length > 0 && `${selectedFiles.length}個選択中 / `}
+          合計サイズ: {fileList.total_size ? `${(fileList.total_size / 1024).toFixed(2)} KB` : '0 KB'}
+        </div>
+      </div>
+    );
+  };
 
   // メインレンダリング
   return (
-    <Card className="max-w-full">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between">
-          <span>拡張ファイルマネージャー</span>
-          <Badge variant="outline">
-            {currentPath || 'ホーム'}
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent
-        className="relative"
-        onContextMenu={(e) => handleContextMenu(e)}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        ref={dropzoneRef}
-      >
-        {/* ドラッグアンドドロップ表示 */}
-        {isDragging && (
-          <div className="absolute inset-0 bg-blue-100 bg-opacity-70 flex items-center justify-center z-10 border-2 border-dashed border-blue-500 rounded-md">
-            <div className="text-blue-700 text-center">
-              <Upload className="h-12 w-12 mx-auto mb-2" />
-              <p className="text-lg font-semibold">ファイルをドロップしてアップロード</p>
-            </div>
+    <div 
+      ref={fileManagerRef}
+      className={`${isFullscreen ? 'fixed inset-0 z-50 p-4 bg-white' : ''} ${className}`}
+      style={{ maxHeight: isFullscreen ? '100vh' : maxHeight }}
+    >
+      <Card className="w-full h-full flex flex-col">
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-lg flex justify-between items-center">
+            <span>ファイルマネージャー</span>
+            {isFullscreen && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setIsFullscreen(false)}
+                className="h-8 w-8"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex-grow overflow-hidden p-4 flex flex-col">
+          {/* パンくずリスト */}
+          <BreadcrumbNav />
+          
+          {/* ツールバー */}
+          {showToolbar && <Toolbar />}
+          
+          {/* ファイルリストツールバー */}
+          <FileListToolbar />
+          
+          {/* ファイルリスト */}
+          <div className="flex-grow overflow-auto">
+            {isLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary-main" />
+              </div>
+            ) : (
+              <>
+                {viewMode === 'list' && <FileListView />}
+                {viewMode === 'detail' && <FileDetailView />}
+                {viewMode === 'grid' && <FileGridView />}
+              </>
+            )}
           </div>
-        )}
-        
-        {/* パンくずリスト */}
-        <BreadcrumbNav
-          fileList={fileList}
-          onPathChange={loadFileList}
-        />
-        
-        {/* ツールバー */}
-        <Toolbar
-          fileList={fileList}
-          currentPath={currentPath}
-          selectedFiles={selectedFiles}
-          clipboardFiles={clipboardFiles}
-          isSearching={isSearching}
-          searchQuery={searchQuery}
-          viewMode={viewMode}
-          showHidden={showHidden}
-          sortDesc={sortDesc}
-          isFullscreen={isFullscreen}
-          onPathChange={loadFileList}
-          onRefresh={() => loadFileList(currentPath)}
-          onNewFolder={() => setShowNewFolderDialog(true)}
-          onNewFile={() => setShowNewFileDialog(true)}
-          onUpload={() => setShowUploadDialog(true)}
-          onDownload={downloadSelectedFiles}
-          onDelete={() => setShowDeleteDialog(true)}
-          onCopy={() => copyToClipboard('copy')}
-          onCut={() => copyToClipboard('cut')}
-          onPaste={pasteFromClipboard}
-          onRename={() => {
-            if (selectedFiles.length === 1) {
-              setNewName(selectedFiles[0].name);
-              setShowRenameDialog(true);
-            }
-          }}
-          onProperties={() => setShowPropertiesDialog(true)}
-          onSearch={searchFiles}
-          onClearSearch={clearSearch}
-          onSearchQueryChange={setSearchQuery}
-          onViewModeChange={setViewMode}
-          onToggleHidden={() => {
-            setShowHidden(!showHidden);
-            loadFileList(currentPath);
-          }}
-          onSortByChange={(field) => {
-            setSortBy(field);
-            loadFileList(currentPath);
-          }}
-          onToggleSortDirection={() => {
-            setSortDesc(!sortDesc);
-            loadFileList(currentPath);
-          }}
-          onShowPreferences={() => setShowPreferences(true)}
-          onToggleFullscreen={toggleFullscreen}
-        />
-        
-        {/* ファイルリスト */}
-        {isLoading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          </div>
-        ) : (
-          <div className="overflow-auto" style={{ minHeight: '300px' }}>
-            <Tabs defaultValue="list" value={viewMode} onValueChange={(value) => setViewMode(value as 'list' | 'icons' | 'details')}>
-              <TabsList className="mb-4">
-                <TabsTrigger value="list">リスト</TabsTrigger>
-                <TabsTrigger value="icons">アイコン</TabsTrigger>
-                <TabsTrigger value="details">詳細</TabsTrigger>
-              </TabsList>
-              <TabsContent value="list">
-                <FileListView
-                  fileList={fileList}
-                  selectedFiles={selectedFiles}
-                  selectFile={selectFile}
-                  openFile={openFile}
-                  handleContextMenu={handleContextMenu}
-                  isSearching={isSearching}
-                  preferences={preferences}
-                />
-              </TabsContent>
-              <TabsContent value="icons">
-                <FileIconsView
-                  fileList={fileList}
-                  selectedFiles={selectedFiles}
-                  selectFile={selectFile}
-                  openFile={openFile}
-                  handleContextMenu={handleContextMenu}
-                  isSearching={isSearching}
-                  preferences={preferences}
-                />
-              </TabsContent>
-              <TabsContent value="details">
-                <FileDetailsView
-                  fileList={fileList}
-                  selectedFiles={selectedFiles}
-                  selectFile={selectFile}
-                  openFile={openFile}
-                  handleContextMenu={handleContextMenu}
-                  isSearching={isSearching}
-                  preferences={preferences}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
-        
-        {/* ステータスバー */}
-        <StatusBar
-          fileList={fileList}
-          selectedFiles={selectedFiles}
-          preferences={preferences}
-        />
-        
-        {/* コンテキストメニュー */}
-        <ContextMenu
-          position={contextMenuPosition}
-          rightClickedFile={rightClickedFile}
-          selectedFiles={selectedFiles}
-          clipboardFiles={clipboardFiles}
-          onClose={closeContextMenu}
-          onAction={handleContextMenuAction}
-          onSelectFile={(file, index) => selectFile(file, index, { ctrlKey: false } as any)}
-          onOpenFile={openFile}
-          onDownload={downloadSelectedFiles}
-          onCopyToClipboard={copyToClipboard}
-          onPaste={pasteFromClipboard}
-          onRename={() => {
-            if (selectedFiles.length === 1) {
-              setNewName(selectedFiles[0].name);
-              setShowRenameDialog(true);
-            }
-          }}
-          onDelete={() => setShowDeleteDialog(true)}
-          onProperties={() => setShowPropertiesDialog(true)}
-          onNewFolder={() => setShowNewFolderDialog(true)}
-          onNewFile={() => setShowNewFileDialog(true)}
-          onUpload={() => setShowUploadDialog(true)}
-          onSelectAll={selectAllFiles}
-          onRefresh={() => loadFileList(currentPath)}
-          fileList={fileList}
-        />
-        
-        {/* ダイアログ */}
-        <FileViewer
-          fileContent={fileContent}
-          onClose={() => setFileContent(null)}
-          editedContent={editedContent}
-          isEditMode={isEditMode}
-          isLoading={isLoading}
-          selectedFile={selectedFiles.length === 1 ? selectedFiles[0] : null}
-          onContentChange={setEditedContent}
-          onToggleEditMode={() => setIsEditMode(!isEditMode)}
-          onSave={saveFile}
-          getDownloadUrl={getDownloadUrl}
-        />
-        
-        <DeleteDialog
-          open={showDeleteDialog}
-          onOpenChange={setShowDeleteDialog}
-          selectedFiles={selectedFiles}
-          onDelete={deleteFiles}
-        />
-        
-        <RenameDialog
-          open={showRenameDialog}
-          onOpenChange={setShowRenameDialog}
-          newName={newName}
-          onNewNameChange={setNewName}
-          onRename={renameFile}
-        />
-        
-        <MoveDialog
-          open={showMoveDialog}
-          onOpenChange={setShowMoveDialog}
-          destination={destination}
-          onDestinationChange={setDestination}
-          onMove={moveFiles}
-        />
-        
-        <CopyDialog
-          open={showCopyDialog}
-          onOpenChange={setShowCopyDialog}
-          destination={destination}
-          onDestinationChange={setDestination}
-          onCopy={copyFiles}
-        />
-        
-        <NewFolderDialog
-          open={showNewFolderDialog}
-          onOpenChange={setShowNewFolderDialog}
-          folderName={newFolderName}
-          onFolderNameChange={setNewFolderName}
-          onCreate={createFolder}
-        />
-        
-        <NewFileDialog
-          open={showNewFileDialog}
-          onOpenChange={setShowNewFileDialog}
-          fileName={newFileName}
-          fileContent={newFileContent}
-          onFileNameChange={setNewFileName}
-          onFileContentChange={setNewFileContent}
-          onCreate={createFile}
-        />
-        
-        <UploadDialog
-          open={showUploadDialog}
-          onOpenChange={setShowUploadDialog}
-          currentPath={currentPath}
-          uploadProgress={uploadProgress}
-          isLoading={isLoading}
-          onFilesChange={setUploadFiles}
-          onUpload={uploadMultipleFiles}
-        />
-        
-        <PropertiesDialog
-          open={showPropertiesDialog}
-          onOpenChange={setShowPropertiesDialog}
-          selectedFiles={selectedFiles}
-          currentPath={currentPath}
-        />
-        
-        <PreferencesDialog
-          open={showPreferences}
-          onOpenChange={setShowPreferences}
-          preferences={preferences}
-          onPreferencesChange={setPreferences}
-          onSave={savePreferences}
-        />
-        
-        <KeyboardShortcutsHelp onOpenChange={() => {}} />
-      </CardContent>
-    </Card>
+          
+          {/* ステータスバー */}
+          <StatusBar />
+        </CardContent>
+      </Card>
+      
+      {/* ダイアログ */}
+      <FileViewer />
+      <DeleteDialog />
+      <BulkDeleteDialog />
+      <RenameDialog />
+      <MoveDialog />
+      <CopyDialog />
+      <NewFolderDialog />
+      <NewFileDialog />
+      <UploadDialog />
+      <PropertiesDialog />
+    </div>
   );
 };
 
