@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, FileText, FolderOpen, Save, Trash, FileUp } from 'lucide-react'
+import { Send, FileText, FolderOpen, Save, Trash, Copy, Check, RefreshCw } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -28,6 +29,7 @@ export default function ChatInterface() {
   const [isEditingFile, setIsEditingFile] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null)
 
   // チャット履歴を下までスクロール
   useEffect(() => {
@@ -237,6 +239,34 @@ export default function ChatInterface() {
     }
   }
 
+  // メッセージをコピーする
+  const copyMessageToClipboard = (index: number) => {
+    const message = messages[index];
+    navigator.clipboard.writeText(message.content)
+      .then(() => {
+        setCopiedMessageIndex(index);
+        setTimeout(() => setCopiedMessageIndex(null), 2000);
+      })
+      .catch(err => {
+        console.error('メッセージのコピーに失敗しました:', err);
+      });
+  };
+
+  // 全てのチャットをコピーする
+  const copyAllChat = () => {
+    const chatText = messages.map(msg => 
+      `${msg.role === 'user' ? 'あなた' : 'Gemma 3'}: ${msg.content}`
+    ).join('\n\n');
+    
+    navigator.clipboard.writeText(chatText)
+      .then(() => {
+        alert('全てのチャットをコピーしました');
+      })
+      .catch(err => {
+        console.error('チャットのコピーに失敗しました:', err);
+      });
+  };
+
   // チャット送信
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -294,7 +324,25 @@ export default function ChatInterface() {
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       <header className="bg-white shadow p-4">
-        <h1 className="text-xl font-bold">Gemma 3 チャットインターフェース</h1>
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <h1 className="text-xl font-bold">Gemma 3 チャットインターフェース</h1>
+          {messages.length > 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button 
+                    onClick={copyAllChat}
+                    className="bg-gray-100 text-gray-600 hover:bg-gray-200 p-2 rounded-md flex items-center gap-1"
+                  >
+                    <Copy size={16} />
+                    <span className="text-sm">全チャットをコピー</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>全ての会話をコピーします</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
       </header>
       
       <main className="flex-1 overflow-auto p-4">
@@ -302,59 +350,85 @@ export default function ChatInterface() {
           {/* ファイルマネージャー */}
           {showFileManager && (
             <div className="md:col-span-1 bg-white p-4 rounded-lg shadow-md overflow-hidden flex flex-col h-[calc(100vh-150px)]">
-              <div className="flex justify-between items-center mb-2">
-                <h2 className="font-semibold">ファイルマネージャー</h2>
-                <div className="flex gap-1">
-                  <button 
-                    onClick={handleCreateNewFile}
-                    className="p-1 text-gray-500 hover:text-blue-500"
-                    title="新規ファイル"
-                  >
-                    <FileText size={18} />
-                  </button>
-                  <button 
-                    onClick={handleCreateNewDirectory}
-                    className="p-1 text-gray-500 hover:text-blue-500"
-                    title="新規ディレクトリ"
-                  >
-                    <FolderOpen size={18} />
-                  </button>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="font-semibold text-lg">ファイルマネージャー</h2>
+                <div className="flex gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button 
+                          onClick={handleCreateNewFile}
+                          className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full"
+                        >
+                          <FileText size={18} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>新規ファイル</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button 
+                          onClick={handleCreateNewDirectory}
+                          className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full"
+                        >
+                          <FolderOpen size={18} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>新規ディレクトリ</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button 
+                          onClick={() => fetchFiles(currentPath)}
+                          className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full"
+                        >
+                          <RefreshCw size={18} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>更新</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
               
-              <div className="flex items-center text-sm text-gray-600 mb-2">
-                <span className="truncate flex-1">{currentPath || '/'}</span>
+              <div className="flex items-center text-sm text-gray-600 mb-3 bg-gray-50 p-2 rounded-md">
+                <span className="truncate flex-1 font-mono">{currentPath || '/'}</span>
                 {currentPath && (
                   <button 
                     onClick={handleGoParent}
-                    className="p-1 text-gray-500 hover:text-blue-500 ml-2"
-                    title="親ディレクトリへ"
+                    className="px-2 py-1 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded ml-2 text-xs font-medium"
                   >
                     上へ
                   </button>
                 )}
               </div>
               
-              <div className="overflow-auto flex-1 border rounded">
+              <div className="overflow-auto flex-1 border rounded-md">
                 <div className="divide-y">
                   {files.map((file, index) => (
                     <div
                       key={index}
-                      className={`p-2 cursor-pointer hover:bg-gray-100 flex items-center ${
+                      className={`p-3 cursor-pointer hover:bg-gray-50 flex items-center ${
                         selectedFile?.path === file.path ? 'bg-blue-50' : ''
                       }`}
                       onClick={() => handleFileClick(file)}
                     >
                       {file.is_dir ? (
-                        <FolderOpen size={16} className="text-yellow-500 mr-2" />
+                        <FolderOpen size={18} className="text-yellow-500 mr-3 flex-shrink-0" />
                       ) : (
-                        <FileText size={16} className="text-gray-500 mr-2" />
+                        <FileText size={18} className="text-gray-500 mr-3 flex-shrink-0" />
                       )}
                       <span className="truncate">{file.name}</span>
                     </div>
                   ))}
                   {files.length === 0 && (
-                    <div className="p-2 text-gray-500 text-center">
+                    <div className="p-4 text-gray-500 text-center">
                       ファイルがありません
                     </div>
                   )}
@@ -362,17 +436,19 @@ export default function ChatInterface() {
               </div>
               
               {selectedFile && !selectedFile.is_dir && (
-                <div className="mt-2 flex gap-2">
+                <div className="mt-3 flex gap-2">
                   <button
                     onClick={handleEditFile}
-                    className="bg-blue-500 text-white px-2 py-1 rounded text-sm flex-1"
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-md text-sm flex-1 flex items-center justify-center gap-1 transition-colors"
                   >
+                    <FileText size={16} />
                     編集
                   </button>
                   <button
                     onClick={handleDeleteFile}
-                    className="bg-red-500 text-white px-2 py-1 rounded text-sm flex-1"
+                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md text-sm flex-1 flex items-center justify-center gap-1 transition-colors"
                   >
+                    <Trash size={16} />
                     削除
                   </button>
                 </div>
@@ -383,12 +459,12 @@ export default function ChatInterface() {
           {/* エディタ */}
           {selectedFile && !selectedFile.is_dir && (
             <div className="md:col-span-1 bg-white p-4 rounded-lg shadow-md overflow-hidden flex flex-col h-[calc(100vh-150px)]">
-              <div className="flex justify-between items-center mb-2">
-                <h2 className="font-semibold truncate">{selectedFile.name}</h2>
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="font-semibold truncate text-lg">{selectedFile.name}</h2>
                 {isEditingFile && (
                   <button 
                     onClick={handleSaveFile}
-                    className="p-1 text-gray-500 hover:text-green-500"
+                    className="p-2 text-gray-600 hover:text-green-500 hover:bg-green-50 rounded-full transition-colors"
                     title="保存"
                   >
                     <Save size={18} />
@@ -397,10 +473,11 @@ export default function ChatInterface() {
               </div>
               
               <textarea
-                className="flex-1 border rounded p-2 w-full font-mono text-sm resize-none"
+                className="flex-1 border rounded-md p-3 w-full font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={fileContent}
                 onChange={(e) => setFileContent(e.target.value)}
                 readOnly={!isEditingFile}
+                style={{ backgroundColor: isEditingFile ? 'white' : '#f9fafc' }}
               />
             </div>
           )}
@@ -419,7 +496,7 @@ export default function ChatInterface() {
                   <p className="text-gray-600 mb-4">質問や会話を入力してください。</p>
                   <button 
                     onClick={handleOpenFileManager}
-                    className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg font-medium"
+                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
                   >
                     ファイルマネージャーを開く
                   </button>
@@ -436,13 +513,29 @@ export default function ChatInterface() {
                     }`}
                   >
                     <div
-                      className={`rounded-lg px-4 py-2 max-w-[80%] ${
+                      className={`rounded-lg px-4 py-3 max-w-[80%] relative group ${
                         message.role === 'user'
                           ? 'bg-blue-500 text-white'
                           : 'bg-white border border-gray-200'
                       }`}
                     >
                       <div className="whitespace-pre-wrap">{message.content}</div>
+                      
+                      <button
+                        onClick={() => copyMessageToClipboard(index)}
+                        className={`absolute -top-2 -right-2 p-1 rounded-full ${
+                          copiedMessageIndex === index
+                            ? 'bg-green-500 text-white'
+                            : 'bg-gray-100 text-gray-500 opacity-0 group-hover:opacity-100'
+                        } transition-all duration-200`}
+                        title="メッセージをコピー"
+                      >
+                        {copiedMessageIndex === index ? (
+                          <Check size={14} />
+                        ) : (
+                          <Copy size={14} />
+                        )}
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -474,21 +567,35 @@ export default function ChatInterface() {
                   placeholder="メッセージを入力..."
                   className="flex-1 rounded-md border border-gray-300 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <button
-                  type="button"
-                  onClick={handleOpenFileManager}
-                  className="bg-gray-100 text-gray-700 rounded-md p-2 hover:bg-gray-200"
-                  title="ファイルマネージャーを開く"
-                >
-                  <FolderOpen size={20} />
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading || !input.trim()}
-                  className="bg-blue-500 text-white rounded-md p-2 disabled:opacity-50"
-                >
-                  <Send size={20} />
-                </button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={handleOpenFileManager}
+                        className="bg-gray-100 text-gray-700 rounded-md p-2 hover:bg-gray-200 transition-colors"
+                      >
+                        <FolderOpen size={20} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>ファイルマネージャーを開く</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="submit"
+                        disabled={isLoading || !input.trim()}
+                        className="bg-blue-500 text-white rounded-md p-2 disabled:opacity-50 hover:bg-blue-600 transition-colors"
+                      >
+                        <Send size={20} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>送信</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </form>
             </div>
           </div>
