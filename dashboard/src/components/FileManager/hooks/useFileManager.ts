@@ -18,8 +18,12 @@ import {
 } from '../utils';
 import { API_BASE_URL } from '../types';
 
-export const useFileManager = (initialPath: string, onFileSelect?: (file: FileInfo, content?: string) => void) => {
-  // 状態管理
+export const useFileManager = (
+  initialPath: string, 
+  onFileSelect?: (file: FileInfo, content?: string) => void,
+  allowMultiSelect: boolean = false
+) => {
+  // 基本状態管理
   const [currentPath, setCurrentPath] = useState(initialPath);
   const [fileList, setFileList] = useState<FileListResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -63,6 +67,9 @@ export const useFileManager = (initialPath: string, onFileSelect?: (file: FileIn
   const [newFileName, setNewFileName] = useState('');
   const [newFileContent, setNewFileContent] = useState('');
   const [uploadFiles, setUploadFiles] = useState<FileList | null>(null);
+  
+  // プロパティ表示用状態
+  const [propertiesFile, setPropertiesFile] = useState<FileInfo | null>(null);
   
   // refs
   const fileManagerRef = useRef<HTMLDivElement>(null);
@@ -160,6 +167,12 @@ export const useFileManager = (initialPath: string, onFileSelect?: (file: FileIn
     }
   };
 
+  // ホーム機能
+  const goHome = useCallback(() => {
+    // ホームディレクトリを指定 (例: /Users/ユーザー名 または C:/Users/ユーザー名)
+    loadFileList('C:/Users/Public');
+  }, []);
+
   // アドレスバーのEnterキー処理
   const handleAddressKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -239,22 +252,46 @@ export const useFileManager = (initialPath: string, onFileSelect?: (file: FileIn
     }
   };
 
-  // ファイルを選択する関数
-  const toggleFileSelection = (file: FileInfo, ctrlKey = false) => {
-    if (!ctrlKey) {
-      // 通常クリックの場合は、単一選択
+  // ファイルを選択する関数（Shift+Ctrl対応）
+  const toggleFileSelection = (file: FileInfo, ctrlKey = false, shiftKey = false) => {
+    if (!allowMultiSelect) {
+      // 複数選択を許可しない場合は単一選択のみ
       setSelectedFile(file);
       setSelectedFiles([file]);
-    } else {
-      // Ctrlキーを押しながらの選択の場合は、トグル
+      return;
+    }
+    
+    if (!ctrlKey && !shiftKey) {
+      // 通常クリックは単一選択
+      setSelectedFile(file);
+      setSelectedFiles([file]);
+    } else if (ctrlKey) {
+      // Ctrlキーを押しながらの選択はトグル
       setSelectedFiles(prev => {
         const isSelected = prev.some(f => f.path === file.path);
         if (isSelected) {
-          return prev.filter(f => f.path !== file.path);
+          const newSelection = prev.filter(f => f.path !== file.path);
+          setSelectedFile(newSelection.length > 0 ? newSelection[0] : null);
+          return newSelection;
         } else {
-          return [...prev, file];
+          const newSelection = [...prev, file];
+          setSelectedFile(file);
+          return newSelection;
         }
       });
+    } else if (shiftKey && selectedFile && fileList) {
+      // Shiftキーを押しながらの選択は範囲選択
+      const filteredFiles = filterFiles(fileList.files);
+      const currentIdx = filteredFiles.findIndex(f => f.path === file.path);
+      const lastIdx = filteredFiles.findIndex(f => f.path === selectedFile.path);
+      
+      if (currentIdx !== -1 && lastIdx !== -1) {
+        const start = Math.min(currentIdx, lastIdx);
+        const end = Math.max(currentIdx, lastIdx);
+        const filesToSelect = filteredFiles.slice(start, end + 1);
+        setSelectedFiles(filesToSelect);
+        setSelectedFile(file);
+      }
     }
   };
 
@@ -701,6 +738,12 @@ export const useFileManager = (initialPath: string, onFileSelect?: (file: FileIn
     }
   };
 
+  // ファイルプロパティを表示する関数
+  const showProperties = (file: FileInfo) => {
+    setPropertiesFile(file);
+    setShowPropertiesDialog(true);
+  };
+
   // 一括操作の関数
   const handleBulkDelete = () => {
     if (selectedFiles.length > 0) {
@@ -765,11 +808,101 @@ export const useFileManager = (initialPath: string, onFileSelect?: (file: FileIn
         e.preventDefault();
         loadFileList(fileList.parent_dir);
       }
+      
+      // Ctrl+A で全選択
+      if (e.ctrlKey && e.key === 'a' && fileList && allowMultiSelect && !isInputFocused) {
+        e.preventDefault();
+        const filteredFiles = filterFiles(fileList.files);
+        setSelectedFiles(filteredFiles);
+        if (filteredFiles.length > 0) {
+          setSelectedFile(filteredFiles[0]);
+        }
+      }
+      
+      // F2で名前変更
+      if (e.key === 'F2' && selectedFile && selectedFiles.length === 1 && !isInputFocused) {
+        e.preventDefault();
+        setShowRenameDialog(true);
+        setNewName(selectedFile.name);
+      }
+      
+      // Homeキーで先頭へ
+      if (e.key === 'Home' && fileList && !isInputFocused) {
+        e.preventDefault();
+        const filteredFiles = filterFiles(fileList.files);
+        if (filteredFiles.length > 0) {
+          setSelectedFile(filteredFiles[0]);
+          setSelectedFiles([filteredFiles[0]]);
+        }
+      }
+      
+      // Endキーで末尾へ
+      if (e.key === 'End' && fileList && !isInputFocused) {
+        e.preventDefault();
+        const filteredFiles = filterFiles(fileList.files);
+        if (filteredFiles.length > 0) {
+          const lastFile = filteredFiles[filteredFiles.length - 1];
+          setSelectedFile(lastFile);
+          setSelectedFiles([lastFile]);
+        }
+      }
+    };
+    
+    // キーボードナビゲーション用のイベントハンドラ
+    const handleArrowKeys = (e: KeyboardEvent) => {
+      // フォーカスされている要素を確認
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement instanceof HTMLInputElement || 
+                            activeElement instanceof HTMLTextAreaElement;
+      
+      if (isInputFocused || !fileList) return;
+      
+      const filteredFiles = filterFiles(fileList.files);
+      if (filteredFiles.length === 0) return;
+      
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') && 
+          viewMode !== 'detail') {
+        e.preventDefault();
+        
+        let currentIndex = -1;
+        if (selectedFile) {
+          currentIndex = filteredFiles.findIndex(file => file.path === selectedFile.path);
+        }
+        
+        let newIndex = -1;
+        const filesPerRow = viewMode === 'grid' ? 4 : 1; // グリッドビューは1行あたり4つと仮定
+        
+        if (e.key === 'ArrowDown') {
+          newIndex = Math.min(currentIndex + filesPerRow, filteredFiles.length - 1);
+        } else if (e.key === 'ArrowUp') {
+          newIndex = Math.max(currentIndex - filesPerRow, 0);
+        } else if (e.key === 'ArrowRight') {
+          newIndex = Math.min(currentIndex + 1, filteredFiles.length - 1);
+        } else if (e.key === 'ArrowLeft') {
+          newIndex = Math.max(currentIndex - 1, 0);
+        }
+        
+        if (newIndex !== -1 && newIndex !== currentIndex) {
+          const newFile = filteredFiles[newIndex];
+          if (e.shiftKey && allowMultiSelect) {
+            // Shiftキーを押しながらの範囲選択
+            toggleFileSelection(newFile, false, true);
+          } else {
+            setSelectedFile(newFile);
+            setSelectedFiles([newFile]);
+          }
+        }
+      }
     };
     
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentPath, selectedFiles, fileList, historyIndex, navigationHistory, loadFileList]);
+    window.addEventListener('keydown', handleArrowKeys);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleArrowKeys);
+    };
+  }, [currentPath, selectedFiles, fileList, historyIndex, navigationHistory, loadFileList, allowMultiSelect, viewMode]);
 
   return {
     // 状態
@@ -848,6 +981,10 @@ export const useFileManager = (initialPath: string, onFileSelect?: (file: FileIn
     uploadFiles,
     setUploadFiles,
     
+    // プロパティ表示用
+    propertiesFile,
+    setPropertiesFile,
+    
     // ref
     fileManagerRef,
     searchInputRef,
@@ -878,6 +1015,8 @@ export const useFileManager = (initialPath: string, onFileSelect?: (file: FileIn
     toggleFolderExpand,
     goBack,
     goForward,
+    goHome,
     handleAddressKeyDown,
+    showProperties,
   };
 };
