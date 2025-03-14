@@ -57,8 +57,8 @@ export interface EnhancedFileManagerProps {
 export const API_BASE_URL = (() => {
   if (typeof window !== 'undefined') {
     // フロントエンドから呼び出す場合
-    const port = window.location.port || '8000'
-    return `${window.location.protocol}//${window.location.hostname}:${port}`
+    // ポートを固定値に変更
+    return `${window.location.protocol}//${window.location.hostname}:8000`
   }
   
   // サーバーサイドレンダリング時のフォールバック
