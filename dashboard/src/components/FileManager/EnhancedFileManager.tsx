@@ -1,10 +1,13 @@
+"use client"
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   FileText, Folder, ArrowUp, RefreshCw, Plus, Upload, Download, Edit, Trash, 
   Copy, Scissors, Search, Info, MoreHorizontal, X, Check, Save, Image, File,
   FileCode, Archive, FileType, BookText, Table as TableIcon, Video, Music,
   ChevronRight, ChevronDown, Grid, List, Filter, SortAsc, SortDesc, Home, Eye, EyeOff, 
-  ExternalLink, HelpCircle, Loader2, Maximize2, Minimize2
+  ExternalLink, HelpCircle, Loader2, Maximize2, Minimize2, Star, Star as StarEmpty,
+  ChevronLeft, Settings, Layout, Monitor, PanelLeft, Pin
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { Button } from '../../components/ui/button';
@@ -35,11 +38,19 @@ import { Switch } from '../../components/ui/switch';
 import { Label } from '../../components/ui/label';
 import { toast } from '../../components/ui/use-toast';
 import { Progress } from '../../components/ui/progress';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../components/ui/collapsible';
 
 import { cn } from '../../lib/utils';
 
 // API Base URL
 const API_BASE_URL = 'http://localhost:8000';
+
+// ピン止めフォルダの型定義
+interface PinnedFolder {
+  path: string;
+  name: string;
+  isQuickAccess?: boolean;
+}
 
 // ファイル情報の型定義
 interface FileInfo {
@@ -143,6 +154,14 @@ const fileCategories = [
   { key: 'code', label: 'コード', icon: <FileCode size={16} /> },
 ];
 
+// デフォルトのクイックアクセス項目
+const defaultQuickAccessItems: PinnedFolder[] = [
+  { path: "", name: "ホーム", isQuickAccess: true },
+  { path: "Documents", name: "ドキュメント", isQuickAccess: true },
+  { path: "Pictures", name: "画像", isQuickAccess: true },
+  { path: "Downloads", name: "ダウンロード", isQuickAccess: true },
+];
+
 // EnhancedFileManagerコンポーネント
 const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
   onFileSelect,
@@ -168,8 +187,109 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [clipboard, setClipboard] = useState<{action: 'copy' | 'cut', files: FileInfo[]} | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [customPath, setCustomPath] = useState('');
+  const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showNavigationPane, setShowNavigationPane] = useState(true);
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  const [pinnedFolders, setPinnedFolders] = useState<PinnedFolder[]>([]);
+  const [quickAccessExpanded, setQuickAccessExpanded] = useState(true);
+  const [pinnedFoldersExpanded, setPinnedFoldersExpanded] = useState(true);
+  
   const fileManagerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const addressBarRef = useRef<HTMLInputElement>(null);
+
+  // ローカルストレージからピン止めフォルダを読み込み
+  useEffect(() => {
+    const savedPins = localStorage.getItem('pinnedFolders');
+    if (savedPins) {
+      try {
+        setPinnedFolders(JSON.parse(savedPins));
+      } catch (e) {
+        console.error('ピン止めフォルダの読み込みに失敗しました:', e);
+        setPinnedFolders([]);
+      }
+    }
+  }, []);
+
+  // ピン止めフォルダが更新されたらローカルストレージに保存
+  useEffect(() => {
+    if (pinnedFolders.length > 0) {
+      localStorage.setItem('pinnedFolders', JSON.stringify(pinnedFolders));
+    }
+  }, [pinnedFolders]);
+
+  // フォルダをピン止めする関数
+  const pinFolder = (folder: FileInfo) => {
+    if (!folder.is_dir) return;
+    
+    // 既にピン止めされているか確認
+    const exists = pinnedFolders.some(pin => pin.path === folder.path);
+    
+    if (!exists) {
+      const newPinnedFolders = [...pinnedFolders, { path: folder.path, name: folder.name }];
+      setPinnedFolders(newPinnedFolders);
+      
+      toast({
+        description: `フォルダ "${folder.name}" をピン止めしました`,
+      });
+    }
+  };
+
+  // ピン止めを解除する関数
+  const unpinFolder = (path: string) => {
+    const newPinnedFolders = pinnedFolders.filter(pin => pin.path !== path);
+    setPinnedFolders(newPinnedFolders);
+    
+    toast({
+      description: `フォルダのピン止めを解除しました`,
+    });
+  };
+
+  // フォルダがピン止めされているかチェックする関数
+  const isPinned = (path: string) => {
+    return pinnedFolders.some(pin => pin.path === path);
+  };
+
+  // フォルダツリーを展開/折りたたむ関数
+  const toggleFolderExpand = (path: string) => {
+    setExpandedFolders(prev => ({
+      ...prev,
+      [path]: !prev[path]
+    }));
+  };
+
+  // ナビゲーション履歴の追加
+  const addToHistory = (path: string) => {
+    // 現在の履歴位置より後ろの履歴はクリアする
+    const newHistory = navigationHistory.slice(0, historyIndex + 1);
+    
+    // 同じパスが連続しないようにチェック
+    if (newHistory.length === 0 || newHistory[newHistory.length - 1] !== path) {
+      newHistory.push(path);
+      setNavigationHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    }
+  };
+
+  // 戻る操作
+  const goBack = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      loadFileList(navigationHistory[newIndex], false);
+    }
+  };
+
+  // 進む操作
+  const goForward = () => {
+    if (historyIndex < navigationHistory.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      loadFileList(navigationHistory[newIndex], false);
+    }
+  };
 
   // ショートカットキー
   useEffect(() => {
@@ -213,15 +333,43 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
           setSelectedFiles(fileList.files);
         }
       }
+
+      // Alt+Left で戻る
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goBack();
+      }
+
+      // Alt+Right で進む
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        goForward();
+      }
+
+      // Alt+Up で上の階層へ
+      if (e.altKey && e.key === 'ArrowUp' && fileList?.parent_dir) {
+        e.preventDefault();
+        loadFileList(fileList.parent_dir);
+      }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentPath, selectedFiles, fileList, allowMultiSelect]);
+  }, [currentPath, selectedFiles, fileList, allowMultiSelect, historyIndex, navigationHistory]);
+
+  // アドレスバーのEnterキー処理
+  const handleAddressKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      loadFileList(customPath);
+    }
+  };
 
   // ファイルリスト読み込み
-  const loadFileList = useCallback(async (path = '') => {
+  const loadFileList = useCallback(async (path = '', addToNav = true) => {
     setIsLoading(true);
+    setCustomPath(path); // アドレスバーの内容を更新
+    
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/files/list?path=${encodeURIComponent(path)}&sort_by=${sortBy}&sort_desc=${sortDesc}&show_hidden=${showHidden}`);
       
@@ -235,6 +383,11 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
       setCurrentPath(path);
       setSelectedFiles([]);
       setSelectedFile(null);
+      
+      // ナビゲーション履歴に追加（オプション）
+      if (addToNav) {
+        addToHistory(path);
+      }
     } catch (error) {
       console.error('ファイルリスト取得エラー:', error);
       toast({
@@ -1061,6 +1214,297 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     loadFileList(initialPath);
   }, [initialPath, loadFileList]);
 
+  // Windows Explorerライクなナビゲーションペイン（左サイドバー）
+  const NavigationPane: React.FC = () => {
+    if (!showNavigationPane) return null;
+    
+    return (
+      <div className="w-64 border-r overflow-auto h-full">
+        <div className="px-2 py-3">
+          {/* クイックアクセス */}
+          <Collapsible 
+            open={quickAccessExpanded} 
+            onOpenChange={setQuickAccessExpanded}
+            className="mb-3"
+          >
+            <CollapsibleTrigger className="flex items-center w-full text-left py-1 px-2 hover:bg-gray-100 rounded">
+              <div className="flex items-center">
+                {quickAccessExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                <Star className="ml-1 mr-2 h-4 w-4 text-yellow-500" />
+                <span className="font-medium">クイックアクセス</span>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="pl-7 mt-1">
+                {defaultQuickAccessItems.map((item) => (
+                  <div
+                    key={item.path}
+                    className={`flex items-center py-1 px-2 rounded cursor-pointer hover:bg-gray-100 ${
+                      currentPath === item.path ? 'bg-blue-100' : ''
+                    }`}
+                    onClick={() => loadFileList(item.path)}
+                  >
+                    <Folder className="mr-2 h-4 w-4 text-yellow-500" />
+                    <span className="truncate text-sm">{item.name}</span>
+                  </div>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* ピン止めされたフォルダ */}
+          {pinnedFolders.length > 0 && (
+            <Collapsible 
+              open={pinnedFoldersExpanded} 
+              onOpenChange={setPinnedFoldersExpanded}
+              className="mb-3"
+            >
+              <CollapsibleTrigger className="flex items-center w-full text-left py-1 px-2 hover:bg-gray-100 rounded">
+                <div className="flex items-center">
+                  {pinnedFoldersExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  <Pin className="ml-1 mr-2 h-4 w-4 text-blue-500" />
+                  <span className="font-medium">ピン留めフォルダ</span>
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="pl-7 mt-1">
+                  {pinnedFolders.filter(item => !item.isQuickAccess).map((item) => (
+                    <div
+                      key={item.path}
+                      className={`flex items-center justify-between py-1 px-2 rounded cursor-pointer hover:bg-gray-100 group ${
+                        currentPath === item.path ? 'bg-blue-100' : ''
+                      }`}
+                    >
+                      <div className="flex items-center flex-1" onClick={() => loadFileList(item.path)}>
+                        <Folder className="mr-2 h-4 w-4 text-yellow-500" />
+                        <span className="truncate text-sm">{item.name}</span>
+                      </div>
+                      <button 
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded-full"
+                        onClick={() => unpinFolder(item.path)}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+          
+          {/* フォルダツリー（後日実装） */}
+          <div className="text-sm text-gray-500 pl-2 mt-4">
+            フォルダツリーはこの位置に表示されます
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Windows Explorerスタイルのツールバー
+  const ExplorerToolbar: React.FC = () => (
+    <div className="border-b bg-gray-100">
+      {/* ナビゲーションボタンとアドレスバー */}
+      <div className="flex items-center p-1 gap-1 border-b">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={goBack}
+                disabled={historyIndex <= 0}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>戻る</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={goForward}
+                disabled={historyIndex >= navigationHistory.length - 1}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>進む</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={() => loadFileList(fileList?.parent_dir || '')}
+                disabled={!fileList?.parent_dir}
+                className="h-8 w-8 p-0"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>上へ</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        <div className="flex-1 px-1">
+          <div className="flex items-center border rounded bg-white">
+            <span className="text-gray-500 px-2">場所:</span>
+            <Input
+              ref={addressBarRef}
+              className="flex-1 border-0 focus-visible:ring-0 h-8"
+              value={customPath}
+              onChange={(e) => setCustomPath(e.target.value)}
+              onKeyDown={handleAddressKeyDown}
+            />
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 px-2"
+              onClick={() => loadFileList(customPath)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        
+        <div className="relative">
+          <Input
+            ref={searchInputRef}
+            className="w-48 h-8"
+            placeholder="検索..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && searchFiles()}
+          />
+          <Search className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          {isSearching && (
+            <X
+              className="absolute right-8 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 cursor-pointer"
+              onClick={clearSearch}
+            />
+          )}
+        </div>
+      </div>
+      
+      {/* リボンツールバー */}
+      <div className="p-1 flex flex-wrap gap-1">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => loadFileList(currentPath)}
+          className="h-9"
+        >
+          <RefreshCw className="h-4 w-4 mr-1" />
+          <span>更新</span>
+        </Button>
+        
+        <Separator orientation="vertical" className="h-8 mx-1" />
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-9">
+              <Plus className="h-4 w-4 mr-1" />
+              <span>新規</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => setShowNewFolderDialog(true)}>
+              <Folder className="h-4 w-4 mr-2" />
+              フォルダ
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowNewFileDialog(true)}>
+              <FileText className="h-4 w-4 mr-2" />
+              テキストドキュメント
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
+        <Separator orientation="vertical" className="h-8 mx-1" />
+        
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => setShowUploadDialog(true)}
+          className="h-9"
+        >
+          <Upload className="h-4 w-4 mr-1" />
+          <span>アップロード</span>
+        </Button>
+
+        {selectedFile && selectedFile.is_dir && (
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => pinFolder(selectedFile)}
+            disabled={isPinned(selectedFile.path)}
+            className="h-9"
+          >
+            <Pin className="h-4 w-4 mr-1" />
+            <span>ピン留め</span>
+          </Button>
+        )}
+        
+        <Separator orientation="vertical" className="h-8 mx-1" />
+        
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={handleCut}
+          disabled={selectedFiles.length === 0}
+          className="h-9"
+        >
+          <Scissors className="h-4 w-4 mr-1" />
+          <span>切り取り</span>
+        </Button>
+        
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={handleCopy}
+          disabled={selectedFiles.length === 0}
+          className="h-9"
+        >
+          <Copy className="h-4 w-4 mr-1" />
+          <span>コピー</span>
+        </Button>
+        
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={handlePaste}
+          disabled={!clipboard}
+          className="h-9"
+        >
+          <FileText className="h-4 w-4 mr-1" />
+          <span>貼り付け</span>
+        </Button>
+        
+        <Separator orientation="vertical" className="h-8 mx-1" />
+        
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => setShowNavigationPane(!showNavigationPane)}
+          className="h-9"
+        >
+          <PanelLeft className="h-4 w-4 mr-1" />
+          <span>ナビゲーションウィンドウ</span>
+        </Button>
+      </div>
+    </div>
+  );
+
   // パンくずリストコンポーネント
   const BreadcrumbNav: React.FC = () => {
     if (!fileList || !fileList.breadcrumbs) {
@@ -1068,7 +1512,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     }
     
     return (
-      <Breadcrumb className="mb-4 text-sm">
+      <Breadcrumb className="px-3 py-2 text-sm bg-gray-50 border-b">
         <BreadcrumbItem>
           <BreadcrumbLink onClick={() => loadFileList('')} className="flex items-center gap-1">
             <Home size={14} />
@@ -1077,7 +1521,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         
-        {fileList.breadcrumbs.slice(0, -1).map((item, index) => (
+        {fileList.breadcrumbs.slice(1).map((item, index) => (
           <React.Fragment key={index}>
             <BreadcrumbItem>
               <BreadcrumbLink onClick={() => loadFileList(item.path)}>
@@ -1087,298 +1531,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
             <BreadcrumbSeparator />
           </React.Fragment>
         ))}
-        
-        {fileList.breadcrumbs.length > 0 && (
-          <BreadcrumbItem>
-            <span className="font-medium">
-              {fileList.breadcrumbs[fileList.breadcrumbs.length - 1].name}
-            </span>
-          </BreadcrumbItem>
-        )}
       </Breadcrumb>
-    );
-  };
-
-  // ツールバーコンポーネント
-  const Toolbar: React.FC = () => (
-    <div className="flex flex-wrap gap-2 mb-4 p-1 rounded-md bg-secondary-light border border-secondary-dark">
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => loadFileList(fileList?.parent_dir || '')}
-        disabled={!fileList?.parent_dir}
-      >
-        <ArrowUp className="h-4 w-4 mr-1" />
-        <span className="hidden sm:inline">上へ</span>
-      </Button>
-      
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => loadFileList(currentPath)}
-      >
-        <RefreshCw className="h-4 w-4 mr-1" />
-        <span className="hidden sm:inline">更新</span>
-      </Button>
-      
-      <Separator orientation="vertical" className="h-8" />
-      
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline">
-            <Plus className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">新規</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem onClick={() => setShowNewFolderDialog(true)}>
-            <Folder className="h-4 w-4 mr-2" />
-            フォルダ
-            <DropdownMenuShortcut>Ctrl+Shift+N</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setShowNewFileDialog(true)}>
-            <FileText className="h-4 w-4 mr-2" />
-            ファイル
-            <DropdownMenuShortcut>Ctrl+N</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => setShowUploadDialog(true)}
-      >
-        <Upload className="h-4 w-4 mr-1" />
-        <span className="hidden sm:inline">アップロード</span>
-      </Button>
-      
-      <Separator orientation="vertical" className="h-8" />
-      
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" disabled={selectedFiles.length === 0}>
-            <MoreHorizontal className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">操作</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuLabel>ファイル操作</DropdownMenuLabel>
-          <DropdownMenuItem onClick={handleCopy} disabled={selectedFiles.length === 0}>
-            <Copy className="h-4 w-4 mr-2" />
-            コピー
-            <DropdownMenuShortcut>Ctrl+C</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleCut} disabled={selectedFiles.length === 0}>
-            <Scissors className="h-4 w-4 mr-2" />
-            切り取り
-            <DropdownMenuShortcut>Ctrl+X</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handlePaste} disabled={!clipboard}>
-            <FileText className="h-4 w-4 mr-2" />
-            貼り付け
-            <DropdownMenuShortcut>Ctrl+V</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleBulkDelete} disabled={selectedFiles.length === 0} className="text-red-500">
-            <Trash className="h-4 w-4 mr-2" />
-            削除
-            <DropdownMenuShortcut>Delete</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      
-      <div className="flex-grow"></div>
-      
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => setIsFullscreen(!isFullscreen)}
-      >
-        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-      </Button>
-      
-      <div className="flex gap-2 items-center">
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            ref={searchInputRef}
-            className="pl-8 w-44 md:w-60 h-9"
-            placeholder="検索..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && searchFiles()}
-          />
-          {isSearching && (
-            <X
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 cursor-pointer"
-              onClick={clearSearch}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-  
-  // ファイルリストツールバー（フィルタとビュータイプ）
-  const FileListToolbar: React.FC = () => (
-    <div className="flex justify-between items-center mb-3 px-1">
-      <div className="flex items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="outline" className="gap-1">
-              <Filter className="h-4 w-4" />
-              {fileCategories.find(cat => cat.key === filterCategory)?.label || '全て'}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuLabel>ファイルタイプ</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {fileCategories.map(category => (
-              <DropdownMenuItem 
-                key={category.key}
-                onClick={() => setFilterCategory(category.key)}
-                className="gap-2"
-              >
-                {category.icon}
-                {category.label}
-                {category.key === filterCategory && <Check className="h-4 w-4 ml-auto" />}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="outline" className="gap-1">
-              {sortDesc ? <SortDesc className="h-4 w-4" /> : <SortAsc className="h-4 w-4" />}
-              {sortBy === 'name' ? '名前' : sortBy === 'size' ? 'サイズ' : '更新日時'}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuLabel>並び替え</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuRadioGroup value={sortBy} onValueChange={(value) => { setSortBy(value); loadFileList(currentPath); }}>
-                <DropdownMenuRadioItem value="name">名前</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="size">サイズ</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="modified">更新日時</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => { setSortDesc(!sortDesc); loadFileList(currentPath); }}>
-              {sortDesc ? '昇順に変更' : '降順に変更'}
-              {sortDesc ? <SortAsc className="h-4 w-4 ml-auto" /> : <SortDesc className="h-4 w-4 ml-auto" />}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      
-      <div className="flex gap-1">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className={viewMode === 'list' ? 'bg-primary-light text-primary-dark' : ''}
-                onClick={() => setViewMode('list')}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>リスト表示</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className={viewMode === 'detail' ? 'bg-primary-light text-primary-dark' : ''}
-                onClick={() => setViewMode('detail')}
-              >
-                <FileText className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>詳細表示</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className={viewMode === 'grid' ? 'bg-primary-light text-primary-dark' : ''}
-                onClick={() => setViewMode('grid')}
-              >
-                <Grid className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>グリッド表示</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className={showHidden ? 'bg-primary-light text-primary-dark' : ''}
-                onClick={() => { setShowHidden(!showHidden); loadFileList(currentPath); }}
-              >
-                {showHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{showHidden ? '隠しファイルを非表示' : '隠しファイルを表示'}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
-    </div>
-  );
-
-  // ファイルリストコンポーネント（リスト表示）
-  const FileListView: React.FC = () => {
-    if (!fileList) return null;
-    
-    const filteredFiles = filterFiles(fileList.files);
-    
-    return (
-      <div className="rounded-md border">
-        {filteredFiles.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            {isSearching ? '検索結果はありません' : 'ファイルがありません'}
-          </div>
-        ) : (
-          <div className="divide-y">
-            {filteredFiles.map((file) => (
-              <div
-                key={file.path}
-                className={`flex items-center p-3 cursor-pointer hover:bg-secondary-light ${
-                  selectedFiles.some(f => f.path === file.path) ? 'bg-primary-light' : ''
-                }`}
-                onClick={(e) => toggleFileSelection(file, e.ctrlKey)}
-                onDoubleClick={() => openFile(file)}
-              >
-                <div className="flex items-center flex-1 min-w-0">
-                  <div className="mr-3">
-                    <FileIcon file={file} size={20} />
-                  </div>
-                  <div className="truncate">
-                    {file.name}
-                    {file.is_hidden && <Badge variant="outline" className="ml-2 text-xs">隠しファイル</Badge>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     );
   };
 
@@ -1389,21 +1542,35 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     const filteredFiles = filterFiles(fileList.files);
     
     return (
-      <div className="rounded-md border">
+      <div className="h-full overflow-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-secondary-light">
-              <TableHead className="w-[40%]">名前</TableHead>
-              <TableHead className="w-[15%]">サイズ</TableHead>
+            <TableRow className="bg-gray-50">
+              <TableHead className="w-[40%]" onClick={() => { setSortBy('name'); setSortDesc(!sortDesc); loadFileList(currentPath); }}>
+                <div className="flex items-center cursor-pointer">
+                  名前
+                  {sortBy === 'name' && (sortDesc ? <SortDesc size={16} className="ml-1" /> : <SortAsc size={16} className="ml-1" />)}
+                </div>
+              </TableHead>
+              <TableHead className="w-[15%]" onClick={() => { setSortBy('size'); setSortDesc(!sortDesc); loadFileList(currentPath); }}>
+                <div className="flex items-center cursor-pointer">
+                  サイズ
+                  {sortBy === 'size' && (sortDesc ? <SortDesc size={16} className="ml-1" /> : <SortAsc size={16} className="ml-1" />)}
+                </div>
+              </TableHead>
               <TableHead className="w-[15%]">種類</TableHead>
-              <TableHead className="w-[25%]">更新日時</TableHead>
-              <TableHead className="w-[5%]"></TableHead>
+              <TableHead className="w-[25%]" onClick={() => { setSortBy('modified'); setSortDesc(!sortDesc); loadFileList(currentPath); }}>
+                <div className="flex items-center cursor-pointer">
+                  更新日時
+                  {sortBy === 'modified' && (sortDesc ? <SortDesc size={16} className="ml-1" /> : <SortAsc size={16} className="ml-1" />)}
+                </div>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredFiles.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                   {isSearching ? '検索結果はありません' : 'ファイルがありません'}
                 </TableCell>
               </TableRow>
@@ -1411,7 +1578,10 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
               filteredFiles.map((file) => (
                 <TableRow 
                   key={file.path} 
-                  className={selectedFiles.some(f => f.path === file.path) ? 'bg-primary-light' : ''}
+                  className={cn(
+                    selectedFiles.some(f => f.path === file.path) ? 'bg-blue-100' : '',
+                    'hover:bg-gray-50'
+                  )}
                   onClick={(e) => toggleFileSelection(file, e.ctrlKey)}
                   onDoubleClick={() => openFile(file)}
                 >
@@ -1421,61 +1591,61 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
                       {file.name}
                       {file.is_hidden && <Badge variant="outline" className="ml-2 text-xs">隠し</Badge>}
                     </span>
+                    {file.is_dir && isPinned(file.path) && (
+                      <Pin size={12} className="text-blue-500 ml-1" />
+                    )}
                   </TableCell>
                   <TableCell>{file.size_formatted || '-'}</TableCell>
                   <TableCell>{file.is_dir ? 'フォルダ' : (file.extension || 'ファイル')}</TableCell>
                   <TableCell>{file.modified || '-'}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {!file.is_dir && (
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openFile(file); }}>
-                            <FileText className="h-4 w-4 mr-2" />
-                            開く
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setNewName(file.name); setShowRenameDialog(true); }}>
-                          <Edit className="h-4 w-4 mr-2" />
-                          名前の変更
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setDestination(''); setShowCopyDialog(true); }}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          コピー
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setDestination(''); setShowMoveDialog(true); }}>
-                          <Scissors className="h-4 w-4 mr-2" />
-                          移動
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {!file.is_dir && (
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); downloadFile(file); }}>
-                            <Download className="h-4 w-4 mr-2" />
-                            ダウンロード
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setShowPropertiesDialog(true); }}>
-                          <Info className="h-4 w-4 mr-2" />
-                          プロパティ
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setShowDeleteDialog(true); }} className="text-red-500">
-                          <Trash className="h-4 w-4 mr-2" />
-                          削除
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
+      </div>
+    );
+  };
+
+  // ファイルリストコンポーネント（リスト表示）
+  const FileListView: React.FC = () => {
+    if (!fileList) return null;
+    
+    const filteredFiles = filterFiles(fileList.files);
+    
+    return (
+      <div className="h-full overflow-auto">
+        {filteredFiles.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            {isSearching ? '検索結果はありません' : 'ファイルがありません'}
+          </div>
+        ) : (
+          <div className="divide-y">
+            {filteredFiles.map((file) => (
+              <div
+                key={file.path}
+                className={`flex items-center p-3 cursor-pointer hover:bg-gray-50 ${
+                  selectedFiles.some(f => f.path === file.path) ? 'bg-blue-100' : ''
+                }`}
+                onClick={(e) => toggleFileSelection(file, e.ctrlKey)}
+                onDoubleClick={() => openFile(file)}
+              >
+                <div className="flex items-center flex-1 min-w-0">
+                  <div className="mr-3">
+                    <FileIcon file={file} size={20} />
+                  </div>
+                  <div className="truncate flex items-center">
+                    {file.name}
+                    {file.is_hidden && <Badge variant="outline" className="ml-2 text-xs">隠しファイル</Badge>}
+                    {file.is_dir && isPinned(file.path) && (
+                      <Pin size={12} className="text-blue-500 ml-1" />
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -1487,7 +1657,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     const filteredFiles = filterFiles(fileList.files);
     
     return (
-      <div className="rounded-md border p-3">
+      <div className="h-full overflow-auto p-3">
         {filteredFiles.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             {isSearching ? '検索結果はありません' : 'ファイルがありません'}
@@ -1498,7 +1668,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
               <div
                 key={file.path}
                 className={`flex flex-col items-center p-3 rounded-md cursor-pointer ${
-                  selectedFiles.some(f => f.path === file.path) ? 'bg-primary-light' : 'hover:bg-secondary-light'
+                  selectedFiles.some(f => f.path === file.path) ? 'bg-blue-100' : 'hover:bg-gray-50'
                 }`}
                 onClick={(e) => toggleFileSelection(file, e.ctrlKey)}
                 onDoubleClick={() => openFile(file)}
@@ -1509,6 +1679,9 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
                 <div className="text-center text-sm mt-2 w-full">
                   <div className="truncate max-w-full">
                     {file.name}
+                    {file.is_dir && isPinned(file.path) && (
+                      <Pin size={12} className="text-blue-500 ml-1 inline-block" />
+                    )}
                   </div>
                   {!file.is_dir && (
                     <div className="text-xs text-gray-500 mt-1">
@@ -1948,7 +2121,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     const filteredFiles = filterFiles(fileList.files);
     
     return (
-      <div className="text-sm text-gray-500 mt-4 flex justify-between items-center p-2 border-t">
+      <div className="py-1 px-3 text-xs text-gray-500 bg-gray-100 border-t flex justify-between items-center">
         <div>
           {fileList.total_dirs} フォルダ, {fileList.total_files} ファイル
           {filteredFiles.length !== fileList.files.length && 
@@ -1966,54 +2139,42 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
   return (
     <div 
       ref={fileManagerRef}
-      className={`${isFullscreen ? 'fixed inset-0 z-50 p-4 bg-white' : ''} ${className}`}
+      className={`${isFullscreen ? 'fixed inset-0 z-50 bg-white' : ''} ${className} select-none`}
       style={{ maxHeight: isFullscreen ? '100vh' : maxHeight }}
     >
-      <Card className="w-full h-full flex flex-col">
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-lg flex justify-between items-center">
-            <span>ファイルマネージャー</span>
-            {isFullscreen && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setIsFullscreen(false)}
-                className="h-8 w-8"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-grow overflow-hidden p-4 flex flex-col">
-          {/* パンくずリスト */}
-          <BreadcrumbNav />
+      <div className="w-full h-full flex flex-col border rounded-md overflow-hidden">
+        {/* Explorer風ヘッダー・ツールバー */}
+        <ExplorerToolbar />
+        
+        {/* Explorer風パンくずリスト */}
+        <BreadcrumbNav />
+        
+        <div className="flex-1 flex overflow-hidden">
+          {/* 左側のナビゲーションペイン */}
+          <NavigationPane />
           
-          {/* ツールバー */}
-          {showToolbar && <Toolbar />}
-          
-          {/* ファイルリストツールバー */}
-          <FileListToolbar />
-          
-          {/* ファイルリスト */}
-          <div className="flex-grow overflow-auto">
-            {isLoading ? (
-              <div className="flex justify-center items-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary-main" />
-              </div>
-            ) : (
-              <>
-                {viewMode === 'list' && <FileListView />}
-                {viewMode === 'detail' && <FileDetailView />}
-                {viewMode === 'grid' && <FileGridView />}
-              </>
-            )}
+          {/* メインコンテンツエリア */}
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {/* ファイルリスト */}
+            <div className="flex-1 overflow-hidden">
+              {isLoading ? (
+                <div className="flex justify-center items-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                </div>
+              ) : (
+                <>
+                  {viewMode === 'list' && <FileListView />}
+                  {viewMode === 'detail' && <FileDetailView />}
+                  {viewMode === 'grid' && <FileGridView />}
+                </>
+              )}
+            </div>
+            
+            {/* ステータスバー */}
+            <StatusBar />
           </div>
-          
-          {/* ステータスバー */}
-          <StatusBar />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       
       {/* ダイアログ */}
       <FileViewer />
