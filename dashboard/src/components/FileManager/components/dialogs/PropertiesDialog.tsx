@@ -7,8 +7,8 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogFooter 
-} from '../../../../ui/dialog';
-import { Button } from '../../../../ui/button';
+} from '../../../../components/ui/dialog';
+import { Button } from '../../../../components/ui/button';
 import { FileInfo } from '../../types';
 import { 
   Calendar, 
@@ -17,8 +17,8 @@ import {
   Folder as FolderIcon, 
   File as FileIcon 
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../ui/tabs';
-import { Separator } from '../../../../ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../components/ui/tabs';
+import { Separator } from '../../../../components/ui/separator';
 
 interface PropertiesDialogProps {
   showPropertiesDialog: boolean;
