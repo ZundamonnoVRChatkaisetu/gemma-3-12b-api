@@ -2,12 +2,12 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple, Generator
 
 from .core.config import settings
 from .core.dependencies import get_token_header
 from .core.check_env import check_api_keys
-from .routers import text_generation, embeddings, health, chat, file_operations, reasoning, web_search, github_operations
+from .routers import text_generation, embeddings, health, chat, file_operations, reasoning, web_search, github_operations, memory
 
 # ロギングの設定
 logging.basicConfig(
@@ -76,6 +76,12 @@ app.include_router(
     github_operations.router,
     prefix="/api/v1/github",
     tags=["github operations"],
+    dependencies=[Depends(get_token_header)] if settings.API_AUTH_REQUIRED else [],
+)
+app.include_router(
+    memory.router,
+    prefix="/api/v1/memory",
+    tags=["memory"],
     dependencies=[Depends(get_token_header)] if settings.API_AUTH_REQUIRED else [],
 )
 
