@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Send, FileText, Copy, Check, Folder } from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import EnhancedFileManager from '@/components/FileManager/EnhancedFileManager'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip'
+import EnhancedFileManager from '../components/FileManager/EnhancedFileManager'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
