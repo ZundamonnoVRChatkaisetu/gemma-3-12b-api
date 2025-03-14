@@ -465,6 +465,25 @@ def delete_user_memory(key: str) -> bool:
     finally:
         conn.close()
 
+def delete_all_user_memories() -> int:
+    """すべてのユーザー定義記憶を削除する"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM user_memories")
+        count = cursor.fetchone()[0]
+        
+        cursor.execute("DELETE FROM user_memories")
+        conn.commit()
+        
+        return count
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"ユーザー定義記憶の全削除中にエラーが発生しました: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
 # 設定管理関数
 def get_memory_setting(key: str) -> Optional[str]:
     """メモリ設定値を取得"""
