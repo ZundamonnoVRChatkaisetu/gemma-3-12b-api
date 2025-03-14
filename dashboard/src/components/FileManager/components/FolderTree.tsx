@@ -132,15 +132,23 @@ const FolderTree: React.FC<FolderTreeProps> = ({ currentPath, loadFileList }) =>
     updateNodeLoadingState(node.path, true)
     
     try {
-      // サブフォルダを取得 - URLエンコーディングと詳細なエラーハンドリングを追加
-      const encodedPath = encodeURIComponent(node.path)
-      const listUrl = new URL(`${API_BASE_URL}/api/v1/files/list`)
-      listUrl.searchParams.append('path', encodedPath)
-      listUrl.searchParams.append('sort_by', 'name')
-      listUrl.searchParams.append('sort_desc', 'false')
-      listUrl.searchParams.append('show_hidden', 'false')
+      // サブフォルダを取得 - クエリパラメータを慎重に追加
+      const params = new URLSearchParams()
+      
+      // 安全にパスをエンコード
+      const safePath = node.path.replace(/\\/g, '/')  // バックスラッシュをスラッシュに置換
+      const encodedPath = encodeURIComponent(safePath)
+      params.append('path', encodedPath)
+      
+      // デフォルトのソートパラメータを追加
+      params.append('sort_by', 'name')
+      params.append('sort_desc', 'false')
+      params.append('show_hidden', 'false')
 
-      const response = await fetch(listUrl.toString(), {
+      // クエリパラメータを含むURLを構築
+      const listUrl = `${API_BASE_URL}/api/v1/files/list?${params.toString()}`
+
+      const response = await fetch(listUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
