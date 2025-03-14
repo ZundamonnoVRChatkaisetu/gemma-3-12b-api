@@ -14,11 +14,30 @@ export const fetchFileList = async (
   showHidden: boolean
 ): Promise<any> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/files/list?path=${encodeURIComponent(path)}&sort_by=${sortBy}&sort_desc=${sortDesc}&show_hidden=${showHidden}`);
+    // URLを構築してからログに出力（デバッグ用）
+    const url = `${API_BASE_URL}/api/v1/files/list?path=${encodeURIComponent(path)}&sort_by=${sortBy}&sort_desc=${sortDesc}&show_hidden=${showHidden}`;
+    console.log('APIリクエストURL:', url);
+    console.log('API_BASE_URL:', API_BASE_URL);
+    
+    const response = await fetch(url);
     
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'ファイルリストの取得に失敗しました');
+      console.error('レスポンスステータス:', response.status);
+      console.error('レスポンスステータステキスト:', response.statusText);
+      
+      // レスポンスの内容を確認（JSON or HTML）
+      const contentType = response.headers.get('content-type');
+      console.error('Content-Type:', contentType);
+      
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'ファイルリストの取得に失敗しました');
+      } else {
+        // HTMLやその他の非JSONレスポンスの場合
+        const textResponse = await response.text();
+        console.error('JSONではないレスポンス:', textResponse.substring(0, 200) + '...');
+        throw new Error('サーバーから予期しない応答: JSONではありません');
+      }
     }
     
     return await response.json();
@@ -105,15 +124,26 @@ export const filterFilesByCategory = (files: FileInfo[], filterCategory: string)
  */
 export const fetchFileContent = async (path: string): Promise<any> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/files/read?path=${encodeURIComponent(path)}`);
+    const url = `${API_BASE_URL}/api/v1/files/read?path=${encodeURIComponent(path)}`;
+    console.log('ファイル読み込みURL:', url);
+    
+    const response = await fetch(url);
     
     if (!response.ok) {
       if (response.status === 400) {
         // バイナリファイルの場合
         throw new Error('このファイルは直接開くことができません');
       }
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'ファイルの読み込みに失敗しました');
+      
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'ファイルの読み込みに失敗しました');
+      } else {
+        const textResponse = await response.text();
+        console.error('JSONではないレスポンス:', textResponse.substring(0, 200) + '...');
+        throw new Error('サーバーから予期しない応答: JSONではありません');
+      }
     }
     
     return await response.json();
