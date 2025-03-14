@@ -203,6 +203,37 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                 
                 return response
             
+            # 推論意図の検出
+            is_reasoning, reasoning_type, reasoning_params = smart_assistant.detect_reasoning_intent(latest_user_message)
+            if is_reasoning:
+                # 推論を実行
+                result = smart_assistant.perform_reasoning(reasoning_type, reasoning_params)
+                
+                # 推論結果を整形
+                response_text = smart_assistant.format_reasoning_result(result)
+                
+                # メモリ機能が有効な場合、ユーザーメッセージとアシスタント応答を保存
+                if memory_enabled:
+                    add_message(session_id, "user", latest_user_message)
+                    add_message(session_id, "assistant", response_text)
+                
+                # 応答メッセージを作成
+                response = ChatCompletionResponse(
+                    message=Message(
+                        role="assistant",
+                        content=response_text
+                    ),
+                    usage={
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                        "time_seconds": round(time.time() - start_time, 2),
+                    },
+                    session_id=session_id
+                )
+                
+                return response
+            
             # Web検索の意図を検出
             is_web_search, search_query = smart_assistant.detect_web_search_intent(latest_user_message)
             if is_web_search and search_query:
