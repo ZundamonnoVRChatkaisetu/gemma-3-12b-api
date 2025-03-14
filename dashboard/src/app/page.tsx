@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, FileText, FolderOpen, Save, Trash, Copy, Check, RefreshCw } from 'lucide-react'
+import { Send, FileText, Copy, Check, Folder } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import EnhancedFileManager from '@/components/FileManager/EnhancedFileManager'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -14,45 +15,30 @@ interface FileInfo {
   path: string
   is_dir: boolean
   size?: number
+  size_formatted?: string
   modified?: string
+  created?: string
+  mime_type?: string
+  extension?: string
+  icon?: string
+  is_hidden?: boolean
 }
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [currentPath, setCurrentPath] = useState('')
-  const [files, setFiles] = useState<FileInfo[]>([])
   const [showFileManager, setShowFileManager] = useState(false)
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null)
   const [fileContent, setFileContent] = useState('')
   const [isEditingFile, setIsEditingFile] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null)
 
   // チャット履歴を下までスクロール
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
-
-  // ファイル一覧を取得
-  async function fetchFiles(path: string = '') {
-    try {
-      const response = await fetch(`http://localhost:8000/api/v1/files/list?path=${encodeURIComponent(path)}`)
-      if (!response.ok) throw new Error('ファイル一覧の取得に失敗しました')
-      
-      const data = await response.json()
-      setFiles(data.files)
-      setCurrentPath(data.current_dir)
-    } catch (error) {
-      console.error('ファイル一覧の取得中にエラーが発生しました:', error)
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'ファイル一覧の取得中にエラーが発生しました。'
-      }])
-    }
-  }
 
   // ファイルの内容を読み込む
   async function readFile(path: string) {
@@ -102,141 +88,22 @@ export default function ChatInterface() {
     }
   }
 
-  // ディレクトリを作成
-  async function createDirectory(path: string, existOk: boolean = false) {
-    try {
-      const response = await fetch('http://localhost:8000/api/v1/files/mkdir', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path,
-          exist_ok: existOk
-        }),
-      })
-      
-      if (!response.ok) throw new Error('ディレクトリの作成に失敗しました')
-      
-      const data = await response.json()
-      return data
-    } catch (error) {
-      console.error('ディレクトリの作成中にエラーが発生しました:', error)
-      return null
-    }
-  }
-
-  // ファイルを削除
-  async function deleteFile(path: string) {
-    try {
-      const response = await fetch(`http://localhost:8000/api/v1/files/delete?path=${encodeURIComponent(path)}`, {
-        method: 'DELETE',
-      })
-      
-      if (!response.ok) throw new Error('ファイルの削除に失敗しました')
-      
-      const data = await response.json()
-      return data
-    } catch (error) {
-      console.error('ファイルの削除中にエラーが発生しました:', error)
-      return null
-    }
-  }
-
   // ファイルマネージャーを開く
   function handleOpenFileManager() {
-    setShowFileManager(true)
-    fetchFiles()
+    setShowFileManager(prev => !prev)
   }
 
-  // ファイルをクリック
-  async function handleFileClick(file: FileInfo) {
-    if (file.is_dir) {
-      // ディレクトリの場合は中に入る
-      fetchFiles(file.path)
-    } else {
-      // ファイルの場合は選択状態にする
-      setSelectedFile(file)
-      const content = await readFile(file.path)
-      if (content !== null) {
-        setFileContent(content)
-      }
+  // ファイル選択のハンドラー
+  const handleFileSelect = async (file: FileInfo, content?: string) => {
+    setSelectedFile(file)
+    if (content) {
+      setFileContent(content)
     }
-  }
-
-  // 親ディレクトリに移動
-  function handleGoParent() {
-    const parentPath = currentPath.split('/').slice(0, -1).join('/')
-    fetchFiles(parentPath)
-  }
-
-  // ファイル編集を開始
-  function handleEditFile() {
-    if (selectedFile) {
-      setIsEditingFile(true)
-    }
-  }
-
-  // ファイルを保存
-  async function handleSaveFile() {
-    if (selectedFile) {
-      const result = await writeFile(selectedFile.path, fileContent)
-      if (result) {
-        setIsEditingFile(false)
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `ファイル "${selectedFile.path}" を保存しました。`
-        }])
-      }
-    }
-  }
-
-  // ファイルを削除
-  async function handleDeleteFile() {
-    if (selectedFile) {
-      const result = await deleteFile(selectedFile.path)
-      if (result) {
-        setSelectedFile(null)
-        setFileContent('')
-        fetchFiles(currentPath)
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `ファイル "${selectedFile.path}" を削除しました。`
-        }])
-      }
-    }
-  }
-
-  // 新しいファイルを作成
-  async function handleCreateNewFile() {
-    const fileName = prompt('新しいファイル名を入力してください:')
-    if (fileName) {
-      const filePath = currentPath ? `${currentPath}/${fileName}` : fileName
-      const result = await writeFile(filePath, '', true)
-      if (result) {
-        fetchFiles(currentPath)
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `新しいファイル "${filePath}" を作成しました。`
-        }])
-      }
-    }
-  }
-
-  // 新しいディレクトリを作成
-  async function handleCreateNewDirectory() {
-    const dirName = prompt('新しいディレクトリ名を入力してください:')
-    if (dirName) {
-      const dirPath = currentPath ? `${currentPath}/${dirName}` : dirName
-      const result = await createDirectory(dirPath, false)
-      if (result) {
-        fetchFiles(currentPath)
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `新しいディレクトリ "${dirPath}" を作成しました。`
-        }])
-      }
-    }
+    // ファイル操作の通知をチャットに追加
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: `ファイル "${file.path}" を選択しました。`
+    }])
   }
 
   // メッセージをコピーする
@@ -307,7 +174,7 @@ export default function ChatInterface() {
 
       // ファイル操作の指示を検出して実行（より高度な実装ではパース処理を入れる）
       const lowerCaseMsg = userMessage.toLowerCase()
-      if (lowerCaseMsg.includes('ファイル一覧') || lowerCaseMsg.includes('ディレクトリ一覧')) {
+      if (lowerCaseMsg.includes('ファイル') || lowerCaseMsg.includes('ディレクトリ')) {
         handleOpenFileManager()
       }
     } catch (error) {
@@ -349,144 +216,19 @@ export default function ChatInterface() {
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* ファイルマネージャー */}
           {showFileManager && (
-            <div className="md:col-span-1 bg-white p-4 rounded-lg shadow-md overflow-hidden flex flex-col h-[calc(100vh-150px)]">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="font-semibold text-lg">ファイルマネージャー</h2>
-                <div className="flex gap-2">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button 
-                          onClick={handleCreateNewFile}
-                          className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full"
-                        >
-                          <FileText size={18} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>新規ファイル</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button 
-                          onClick={handleCreateNewDirectory}
-                          className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full"
-                        >
-                          <FolderOpen size={18} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>新規ディレクトリ</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button 
-                          onClick={() => fetchFiles(currentPath)}
-                          className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full"
-                        >
-                          <RefreshCw size={18} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>更新</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </div>
-              
-              <div className="flex items-center text-sm text-gray-600 mb-3 bg-gray-50 p-2 rounded-md">
-                <span className="truncate flex-1 font-mono">{currentPath || '/'}</span>
-                {currentPath && (
-                  <button 
-                    onClick={handleGoParent}
-                    className="px-2 py-1 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded ml-2 text-xs font-medium"
-                  >
-                    上へ
-                  </button>
-                )}
-              </div>
-              
-              <div className="overflow-auto flex-1 border rounded-md">
-                <div className="divide-y">
-                  {files.map((file, index) => (
-                    <div
-                      key={index}
-                      className={`p-3 cursor-pointer hover:bg-gray-50 flex items-center ${
-                        selectedFile?.path === file.path ? 'bg-blue-50' : ''
-                      }`}
-                      onClick={() => handleFileClick(file)}
-                    >
-                      {file.is_dir ? (
-                        <FolderOpen size={18} className="text-yellow-500 mr-3 flex-shrink-0" />
-                      ) : (
-                        <FileText size={18} className="text-gray-500 mr-3 flex-shrink-0" />
-                      )}
-                      <span className="truncate">{file.name}</span>
-                    </div>
-                  ))}
-                  {files.length === 0 && (
-                    <div className="p-4 text-gray-500 text-center">
-                      ファイルがありません
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {selectedFile && !selectedFile.is_dir && (
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={handleEditFile}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-md text-sm flex-1 flex items-center justify-center gap-1 transition-colors"
-                  >
-                    <FileText size={16} />
-                    編集
-                  </button>
-                  <button
-                    onClick={handleDeleteFile}
-                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md text-sm flex-1 flex items-center justify-center gap-1 transition-colors"
-                  >
-                    <Trash size={16} />
-                    削除
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* エディタ */}
-          {selectedFile && !selectedFile.is_dir && (
-            <div className="md:col-span-1 bg-white p-4 rounded-lg shadow-md overflow-hidden flex flex-col h-[calc(100vh-150px)]">
-              <div className="flex justify-between items-center mb-3">
-                <h2 className="font-semibold truncate text-lg">{selectedFile.name}</h2>
-                {isEditingFile && (
-                  <button 
-                    onClick={handleSaveFile}
-                    className="p-2 text-gray-600 hover:text-green-500 hover:bg-green-50 rounded-full transition-colors"
-                    title="保存"
-                  >
-                    <Save size={18} />
-                  </button>
-                )}
-              </div>
-              
-              <textarea
-                className="flex-1 border rounded-md p-3 w-full font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                value={fileContent}
-                onChange={(e) => setFileContent(e.target.value)}
-                readOnly={!isEditingFile}
-                style={{ backgroundColor: isEditingFile ? 'white' : '#f9fafc' }}
+            <div className="md:col-span-1">
+              <EnhancedFileManager 
+                onFileSelect={handleFileSelect}
+                maxHeight="calc(100vh - 150px)"
+                showToolbar={true}
+                initialPath=""
               />
             </div>
           )}
 
           {/* チャット */}
           <div className={`${
-            showFileManager || (selectedFile && !selectedFile.is_dir) 
-              ? 'md:col-span-1' 
-              : 'md:col-span-3'
+            showFileManager ? 'md:col-span-2' : 'md:col-span-3'
           } flex flex-col h-[calc(100vh-150px)]`}>
             <div className="flex-1 overflow-auto bg-white p-4 rounded-lg shadow-md">
               {/* メッセージがない場合は案内を表示 */}
@@ -496,8 +238,9 @@ export default function ChatInterface() {
                   <p className="text-gray-600 mb-4">質問や会話を入力してください。</p>
                   <button 
                     onClick={handleOpenFileManager}
-                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 mx-auto"
                   >
+                    <Folder size={18} />
                     ファイルマネージャーを開く
                   </button>
                 </div>
@@ -573,12 +316,16 @@ export default function ChatInterface() {
                       <button
                         type="button"
                         onClick={handleOpenFileManager}
-                        className="bg-gray-100 text-gray-700 rounded-md p-2 hover:bg-gray-200 transition-colors"
+                        className={`${
+                          showFileManager 
+                            ? 'bg-blue-100 text-blue-600' 
+                            : 'bg-gray-100 text-gray-700'
+                        } rounded-md p-2 hover:bg-gray-200 transition-colors`}
                       >
-                        <FolderOpen size={20} />
+                        <Folder size={20} />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>ファイルマネージャーを開く</TooltipContent>
+                    <TooltipContent>{showFileManager ? 'ファイルマネージャーを閉じる' : 'ファイルマネージャーを開く'}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 
