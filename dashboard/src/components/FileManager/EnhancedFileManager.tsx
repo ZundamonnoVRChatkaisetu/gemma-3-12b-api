@@ -1,8 +1,10 @@
+"use client"
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   FileText, Folder, ArrowUp, RefreshCw, Plus, Upload, Download, Edit, Trash, 
-  Copy, Scissor, Search, Info, MoreHorizontal, X, Check, Save, Image, File,
-  FileCode, FileArchive, FilePdf, FileWord, FileExcel, FilePowerpoint, FileAudio, FileVideo,
+  Copy, Scissors, Search, Info, MoreHorizontal, X, Check, Save, Image, File,
+  FileCode, Archive, FileType, BookText, Table as TableIcon, Video, Music,
   ChevronRight, ChevronDown, Grid, List, Filter, SortAsc, SortDesc, Home, Eye, EyeOff, 
   ExternalLink, HelpCircle, Loader2, Maximize2, Minimize2
 } from 'lucide-react';
@@ -134,9 +136,9 @@ const fileCategories = [
   { key: 'all', label: '全て', icon: <File size={16} /> },
   { key: 'document', label: '文書', icon: <FileText size={16} /> },
   { key: 'image', label: '画像', icon: <Image size={16} /> },
-  { key: 'video', label: '動画', icon: <FileVideo size={16} /> },
-  { key: 'audio', label: '音声', icon: <FileAudio size={16} /> },
-  { key: 'archive', label: '圧縮', icon: <FileArchive size={16} /> },
+  { key: 'video', label: '動画', icon: <Video size={16} /> },
+  { key: 'audio', label: '音声', icon: <Music size={16} /> },
+  { key: 'archive', label: '圧縮', icon: <Archive size={16} /> },
   { key: 'code', label: 'コード', icon: <FileCode size={16} /> },
 ];
 
@@ -304,21 +306,21 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
       case 'file-text':
         return <FileText className={`h-${size/4} w-${size/4} text-blue-500`} />;
       case 'file-pdf':
-        return <FilePdf className={`h-${size/4} w-${size/4} text-red-500`} />;
+        return <FileType className={`h-${size/4} w-${size/4} text-red-500`} />;
       case 'file-word':
-        return <FileWord className={`h-${size/4} w-${size/4} text-blue-700`} />;
+        return <BookText className={`h-${size/4} w-${size/4} text-blue-700`} />;
       case 'file-excel':
-        return <FileExcel className={`h-${size/4} w-${size/4} text-green-600`} />;
+        return <TableIcon className={`h-${size/4} w-${size/4} text-green-600`} />;
       case 'file-powerpoint':
-        return <FilePowerpoint className={`h-${size/4} w-${size/4} text-orange-500`} />;
+        return <FileText className={`h-${size/4} w-${size/4} text-orange-500`} />;
       case 'file-image':
         return <Image className={`h-${size/4} w-${size/4} text-purple-500`} />;
       case 'file-audio':
-        return <FileAudio className={`h-${size/4} w-${size/4} text-pink-500`} />;
+        return <Music className={`h-${size/4} w-${size/4} text-pink-500`} />;
       case 'file-video':
-        return <FileVideo className={`h-${size/4} w-${size/4} text-red-600`} />;
+        return <Video className={`h-${size/4} w-${size/4} text-red-600`} />;
       case 'file-archive':
-        return <FileArchive className={`h-${size/4} w-${size/4} text-yellow-600`} />;
+        return <Archive className={`h-${size/4} w-${size/4} text-yellow-600`} />;
       case 'file-code':
         return <FileCode className={`h-${size/4} w-${size/4} text-green-500`} />;
       default:
@@ -327,21 +329,21 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
           if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'].includes(ext)) {
             return <Image className={`h-${size/4} w-${size/4} text-purple-500`} />;
           } else if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) {
-            return <FileAudio className={`h-${size/4} w-${size/4} text-pink-500`} />;
+            return <Music className={`h-${size/4} w-${size/4} text-pink-500`} />;
           } else if (['mp4', 'webm', 'avi', 'mov', 'mkv'].includes(ext)) {
-            return <FileVideo className={`h-${size/4} w-${size/4} text-red-600`} />;
+            return <Video className={`h-${size/4} w-${size/4} text-red-600`} />;
           } else if (['zip', 'tar', 'gz', 'rar', '7z'].includes(ext)) {
-            return <FileArchive className={`h-${size/4} w-${size/4} text-yellow-600`} />;
+            return <Archive className={`h-${size/4} w-${size/4} text-yellow-600`} />;
           } else if (['html', 'css', 'js', 'ts', 'jsx', 'tsx', 'json', 'py', 'java', 'c', 'cpp', 'php', 'rb'].includes(ext)) {
             return <FileCode className={`h-${size/4} w-${size/4} text-green-500`} />;
           } else if (['pdf'].includes(ext)) {
-            return <FilePdf className={`h-${size/4} w-${size/4} text-red-500`} />;
+            return <FileType className={`h-${size/4} w-${size/4} text-red-500`} />;
           } else if (['doc', 'docx'].includes(ext)) {
-            return <FileWord className={`h-${size/4} w-${size/4} text-blue-700`} />;
+            return <BookText className={`h-${size/4} w-${size/4} text-blue-700`} />;
           } else if (['xls', 'xlsx'].includes(ext)) {
-            return <FileExcel className={`h-${size/4} w-${size/4} text-green-600`} />;
+            return <TableIcon className={`h-${size/4} w-${size/4} text-green-600`} />;
           } else if (['ppt', 'pptx'].includes(ext)) {
-            return <FilePowerpoint className={`h-${size/4} w-${size/4} text-orange-500`} />;
+            return <FileText className={`h-${size/4} w-${size/4} text-orange-500`} />;
           } else if (['txt', 'md', 'rtf'].includes(ext)) {
             return <FileText className={`h-${size/4} w-${size/4} text-blue-500`} />;
           }
@@ -1167,7 +1169,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
             <DropdownMenuShortcut>Ctrl+C</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleCut} disabled={selectedFiles.length === 0}>
-            <Scissor className="h-4 w-4 mr-2" />
+            <Scissors className="h-4 w-4 mr-2" />
             切り取り
             <DropdownMenuShortcut>Ctrl+X</DropdownMenuShortcut>
           </DropdownMenuItem>
@@ -1446,7 +1448,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
                           コピー
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFile(file); setDestination(''); setShowMoveDialog(true); }}>
-                          <Scissor className="h-4 w-4 mr-2" />
+                          <Scissors className="h-4 w-4 mr-2" />
                           移動
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
