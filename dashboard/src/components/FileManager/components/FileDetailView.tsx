@@ -19,7 +19,7 @@ interface FileDetailViewProps {
   currentPath: string;
   isSearching: boolean;
   selectedFiles: FileInfo[];
-  toggleFileSelection: (file: FileInfo, ctrlKey?: boolean) => void;
+  toggleFileSelection: (file: FileInfo, ctrlKey?: boolean, shiftKey?: boolean) => void;
   openFile: (file: FileInfo) => void;
   isPinned: (path: string) => boolean;
 }
@@ -82,10 +82,16 @@ const FileDetailView: React.FC<FileDetailViewProps> = ({
                 key={file.path} 
                 className={cn(
                   selectedFiles.some(f => f.path === file.path) ? 'bg-blue-100' : '',
-                  'hover:bg-gray-50'
+                  'hover:bg-gray-50 group'
                 )}
-                onClick={(e) => toggleFileSelection(file, e.ctrlKey)}
+                onClick={(e) => toggleFileSelection(file, e.ctrlKey, e.shiftKey)}
                 onDoubleClick={() => openFile(file)}
+                onContextMenu={(e) => {
+                  // 選択されていない項目を右クリックしたら選択する
+                  if (!selectedFiles.some(f => f.path === file.path)) {
+                    toggleFileSelection(file, false, false);
+                  }
+                }}
               >
                 <TableCell className="flex items-center gap-2 cursor-pointer">
                   <FileIcon file={file} />
