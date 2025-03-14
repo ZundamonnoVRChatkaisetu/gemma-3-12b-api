@@ -1,132 +1,193 @@
 "use client"
 
 import React from 'react';
-import { 
-  Copy, Scissors, FileText, Trash2, Edit3, Download, 
-  ExternalLink, Eye, Pin, Info
+import {
+  Copy, Scissors, FileText, Trash, Edit, Download, File, Folder, Pin, Eye,
+  RefreshCw, FilePlus2, FolderPlus, Info, Upload
 } from 'lucide-react';
 import { 
-  ContextMenu,
-  ContextMenuTrigger,
-  ContextMenuItem,
-  ContextMenuContent,
+  ContextMenu, 
+  ContextMenuTrigger, 
+  ContextMenuContent, 
+  ContextMenuItem, 
   ContextMenuSeparator,
   ContextMenuSub,
   ContextMenuSubTrigger,
-  ContextMenuSubContent,
+  ContextMenuSubContent
 } from '../../../components/ui/context-menu';
 import { FileInfo } from '../types';
 
 interface FileContextMenuProps {
-  file: FileInfo;
   children: React.ReactNode;
-  openFile: (file: FileInfo) => void;
-  setShowDeleteDialog: (show: boolean) => void;
-  setShowRenameDialog: (show: boolean) => void;
-  setSelectedFile: (file: FileInfo) => void;
+  file?: FileInfo | null;
+  currentPath: string;
   handleCopy: () => void;
   handleCut: () => void;
-  downloadFile: (file: FileInfo) => void;
-  pinFolder: (folder: FileInfo) => void;
+  handlePaste: () => void;
+  handleDelete: () => void;
+  handleRename: () => void;
+  handleDownload: (file: FileInfo) => void;
+  pinFolder: (file: FileInfo) => void;
   isPinned: (path: string) => boolean;
-  setShowPropertiesDialog: (show: boolean) => void;
+  setShowNewFolderDialog: (show: boolean) => void;
+  setShowNewFileDialog: (show: boolean) => void;
+  setShowUploadDialog: (show: boolean) => void;
+  refreshFileList: () => void;
+  openFile: (file: FileInfo) => void;
+  showProperties: (file: FileInfo) => void;
+  clipboard: {action: 'copy' | 'cut', files: FileInfo[]} | null;
+  selectedFiles: FileInfo[];
+  isBackground?: boolean;
 }
 
 const FileContextMenu: React.FC<FileContextMenuProps> = ({
-  file,
   children,
-  openFile,
-  setShowDeleteDialog,
-  setShowRenameDialog,
-  setSelectedFile,
+  file,
+  currentPath,
   handleCopy,
   handleCut,
-  downloadFile,
+  handlePaste,
+  handleDelete,
+  handleRename,
+  handleDownload,
   pinFolder,
   isPinned,
-  setShowPropertiesDialog
+  setShowNewFolderDialog,
+  setShowNewFileDialog,
+  setShowUploadDialog,
+  refreshFileList,
+  openFile,
+  showProperties,
+  clipboard,
+  selectedFiles,
+  isBackground = false
 }) => {
-  const handleDelete = () => {
-    setSelectedFile(file);
-    setShowDeleteDialog(true);
-  };
-
-  const handleRename = () => {
-    setSelectedFile(file);
-    setShowRenameDialog(true);
-  };
-
-  const handleProperties = () => {
-    setSelectedFile(file);
-    setShowPropertiesDialog(true);
-  };
-
+  const hasSelection = selectedFiles.length > 0;
+  const showMultipleSelectionMenu = selectedFiles.length > 1;
+  const showFileMenu = file && !showMultipleSelectionMenu && !isBackground;
+  const showBackgroundMenu = isBackground || !file;
+  
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-64">
-        <ContextMenuItem onClick={() => openFile(file)} className="cursor-pointer">
-          {file.is_dir ? (
-            <>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              <span>開く</span>
-            </>
-          ) : (
-            <>
-              <Eye className="mr-2 h-4 w-4" />
-              <span>表示</span>
-            </>
-          )}
-        </ContextMenuItem>
-
-        <ContextMenuSeparator />
-
-        <ContextMenuItem onClick={() => { setSelectedFile(file); handleCut(); }} className="cursor-pointer">
-          <Scissors className="mr-2 h-4 w-4" />
-          <span>切り取り</span>
-        </ContextMenuItem>
-        
-        <ContextMenuItem onClick={() => { setSelectedFile(file); handleCopy(); }} className="cursor-pointer">
-          <Copy className="mr-2 h-4 w-4" />
-          <span>コピー</span>
-        </ContextMenuItem>
-
-        <ContextMenuSeparator />
-        
-        <ContextMenuItem onClick={handleRename} className="cursor-pointer">
-          <Edit3 className="mr-2 h-4 w-4" />
-          <span>名前の変更</span>
-        </ContextMenuItem>
-        
-        <ContextMenuItem onClick={handleDelete} className="cursor-pointer text-red-600">
-          <Trash2 className="mr-2 h-4 w-4" />
-          <span>削除</span>
-        </ContextMenuItem>
-
-        <ContextMenuSeparator />
-
-        {!file.is_dir && (
-          <ContextMenuItem onClick={() => downloadFile(file)} className="cursor-pointer">
-            <Download className="mr-2 h-4 w-4" />
-            <span>ダウンロード</span>
-          </ContextMenuItem>
+      <ContextMenuContent className="w-64 shadow-md text-gray-700">
+        {/* ファイル選択時のメニュー */}
+        {showFileMenu && (
+          <>
+            <ContextMenuItem onClick={() => file && openFile(file)} className="flex items-center gap-2 focus:bg-blue-50">
+              <Eye className="h-4 w-4" /> 開く
+            </ContextMenuItem>
+            
+            <ContextMenuSeparator />
+            
+            <ContextMenuItem onClick={handleCut} className="flex items-center gap-2 focus:bg-blue-50">
+              <Scissors className="h-4 w-4" /> 切り取り
+            </ContextMenuItem>
+            <ContextMenuItem onClick={handleCopy} className="flex items-center gap-2 focus:bg-blue-50">
+              <Copy className="h-4 w-4" /> コピー
+            </ContextMenuItem>
+            
+            <ContextMenuSeparator />
+            
+            <ContextMenuItem onClick={handleDelete} className="flex items-center gap-2 focus:bg-blue-50">
+              <Trash className="h-4 w-4 text-red-500" /> 削除
+            </ContextMenuItem>
+            <ContextMenuItem onClick={handleRename} className="flex items-center gap-2 focus:bg-blue-50">
+              <Edit className="h-4 w-4" /> 名前の変更
+            </ContextMenuItem>
+            
+            {file.is_dir && (
+              <ContextMenuItem 
+                onClick={() => pinFolder(file)} 
+                disabled={isPinned(file.path)}
+                className="flex items-center gap-2 focus:bg-blue-50"
+              >
+                <Pin className="h-4 w-4" /> {isPinned(file.path) ? 'ピン留め済み' : 'ピン留めする'}
+              </ContextMenuItem>
+            )}
+            
+            {!file.is_dir && (
+              <ContextMenuItem onClick={() => handleDownload(file)} className="flex items-center gap-2 focus:bg-blue-50">
+                <Download className="h-4 w-4" /> ダウンロード
+              </ContextMenuItem>
+            )}
+            
+            <ContextMenuSeparator />
+            
+            <ContextMenuItem onClick={() => file && showProperties(file)} className="flex items-center gap-2 focus:bg-blue-50">
+              <Info className="h-4 w-4" /> プロパティ
+            </ContextMenuItem>
+          </>
         )}
 
-        {file.is_dir && !isPinned(file.path) && (
-          <ContextMenuItem onClick={() => pinFolder(file)} className="cursor-pointer">
-            <Pin className="mr-2 h-4 w-4" />
-            <span>ピン留めする</span>
-          </ContextMenuItem>
+        {/* 複数ファイル選択時のメニュー */}
+        {showMultipleSelectionMenu && (
+          <>
+            <ContextMenuItem onClick={handleCut} className="flex items-center gap-2 focus:bg-blue-50">
+              <Scissors className="h-4 w-4" /> 切り取り ({selectedFiles.length}項目)
+            </ContextMenuItem>
+            <ContextMenuItem onClick={handleCopy} className="flex items-center gap-2 focus:bg-blue-50">
+              <Copy className="h-4 w-4" /> コピー ({selectedFiles.length}項目)
+            </ContextMenuItem>
+            
+            <ContextMenuSeparator />
+            
+            <ContextMenuItem onClick={handleDelete} className="flex items-center gap-2 focus:bg-blue-50">
+              <Trash className="h-4 w-4 text-red-500" /> 削除 ({selectedFiles.length}項目)
+            </ContextMenuItem>
+          </>
         )}
 
-        <ContextMenuSeparator />
-        
-        <ContextMenuItem onClick={handleProperties} className="cursor-pointer">
-          <Info className="mr-2 h-4 w-4" />
-          <span>プロパティ</span>
-        </ContextMenuItem>
+        {/* 背景クリック時のメニュー */}
+        {showBackgroundMenu && (
+          <>
+            <ContextMenuItem 
+              onClick={handlePaste} 
+              disabled={!clipboard}
+              className="flex items-center gap-2 focus:bg-blue-50"
+            >
+              <FileText className="h-4 w-4" /> 
+              {clipboard ? `貼り付け (${clipboard.files.length}項目)` : '貼り付け'}
+            </ContextMenuItem>
+            
+            <ContextMenuSeparator />
+            
+            <ContextMenuSub>
+              <ContextMenuSubTrigger className="flex items-center gap-2 focus:bg-blue-50">
+                <FolderPlus className="h-4 w-4" /> 新規作成
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-48">
+                <ContextMenuItem onClick={() => setShowNewFolderDialog(true)} className="flex items-center gap-2 focus:bg-blue-50">
+                  <Folder className="h-4 w-4 text-yellow-500" /> フォルダ
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => setShowNewFileDialog(true)} className="flex items-center gap-2 focus:bg-blue-50">
+                  <File className="h-4 w-4" /> テキストドキュメント
+                </ContextMenuItem>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+            
+            <ContextMenuItem onClick={() => setShowUploadDialog(true)} className="flex items-center gap-2 focus:bg-blue-50">
+              <Upload className="h-4 w-4" /> アップロード
+            </ContextMenuItem>
+            
+            <ContextMenuSeparator />
+            
+            <ContextMenuItem onClick={refreshFileList} className="flex items-center gap-2 focus:bg-blue-50">
+              <RefreshCw className="h-4 w-4" /> 更新
+            </ContextMenuItem>
+            
+            <ContextMenuSeparator />
+            
+            <ContextMenuItem 
+              onClick={() => showProperties({ name: '現在のフォルダ', path: currentPath, is_dir: true })}
+              className="flex items-center gap-2 focus:bg-blue-50"
+            >
+              <Info className="h-4 w-4" /> プロパティ
+            </ContextMenuItem>
+          </>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );
