@@ -53,8 +53,10 @@ export interface EnhancedFileManagerProps {
   className?: string;
 }
 
-// API Base URL
-export const API_BASE_URL = 'http://localhost:8000';
+// API Base URL - 動的に現在のホストから取得
+export const API_BASE_URL = typeof window !== 'undefined' 
+  ? `${window.location.protocol}//${window.location.hostname}:8000`
+  : 'http://localhost:8000';
 
 // カスタムカラースキーム
 export const colors = {
