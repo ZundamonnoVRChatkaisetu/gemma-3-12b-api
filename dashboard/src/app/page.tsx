@@ -221,7 +221,7 @@ export default function ChatInterface() {
                 onFileSelect={handleFileSelect}
                 maxHeight="calc(100vh - 150px)"
                 showToolbar={true}
-                initialPath="C:"
+                initialPath="Documents"
               />
             </div>
           )}
