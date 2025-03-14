@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Any
 import logging
 import time
 import json
+import uuid
 
 from ..models.chat_model import get_chat_model, Message as ChatMessage
 from ..models.model_factory import get_model, get_tokenizer
@@ -11,6 +12,7 @@ from ..models.files_assistant import get_files_assistant
 from ..models.smart_assistant import get_smart_assistant
 from ..models.schemas import ChatCompletionRequest, ChatCompletionResponse, Message
 from ..core.dependencies import check_rate_limit
+from ..core.database import get_memory_setting, get_session, create_session, add_message
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,7 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
     * top_p: top-p サンプリングのパラメータ
     * top_k: top-k サンプリングのパラメータ
     * stream: ストリーミング生成を行うかどうか
+    * session_id: セッションID（メモリ機能使用時、指定しない場合は新しいセッションが作成されます）
     """
     start_time = time.time()
     
@@ -47,6 +50,19 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
             ChatMessage(role=msg.role, content=msg.content)
             for msg in data.messages
         ]
+        
+        # セッションIDの取得（リクエストから、または新規生成）
+        session_id = data.session_id if hasattr(data, 'session_id') and data.session_id else str(uuid.uuid4())
+        
+        # メモリ機能が有効かどうかを確認
+        memory_enabled_str = get_memory_setting("memory_enabled")
+        memory_enabled = memory_enabled_str == "true" if memory_enabled_str else True
+        
+        # セッションが存在するか確認し、なければ作成
+        if memory_enabled:
+            session = get_session(session_id)
+            if not session:
+                create_session(session_id)
         
         # 最後のユーザーメッセージを取得
         latest_user_message = data.messages[-1].content if data.messages and data.messages[-1].role == "user" else ""
@@ -85,6 +101,11 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                 else:
                     response_text = f"エラーが発生しました: {result.get('message', '不明なエラー')}"
                 
+                # メモリ機能が有効な場合、ユーザーメッセージとアシスタント応答を保存
+                if memory_enabled:
+                    add_message(session_id, "user", latest_user_message)
+                    add_message(session_id, "assistant", response_text)
+                
                 # 応答メッセージを作成
                 response = ChatCompletionResponse(
                     message=Message(
@@ -96,7 +117,8 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                         "completion_tokens": 0,
                         "total_tokens": 0,
                         "time_seconds": round(time.time() - start_time, 2),
-                    }
+                    },
+                    session_id=session_id
                 )
                 
                 return response
@@ -107,6 +129,11 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                 # Web検索結果を含めた応答を生成
                 response_text = smart_assistant.enhance_response_with_search(search_query, latest_user_message)
                 
+                # メモリ機能が有効な場合、ユーザーメッセージとアシスタント応答を保存
+                if memory_enabled:
+                    add_message(session_id, "user", latest_user_message)
+                    add_message(session_id, "assistant", response_text)
+                
                 # 応答メッセージを作成
                 response = ChatCompletionResponse(
                     message=Message(
@@ -118,7 +145,8 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                         "completion_tokens": 0,
                         "total_tokens": 0,
                         "time_seconds": round(time.time() - start_time, 2),
-                    }
+                    },
+                    session_id=session_id
                 )
                 
                 return response
@@ -132,6 +160,11 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                 # 操作結果を整形
                 response_text = smart_assistant.format_github_operation_result(op_type, result)
                 
+                # メモリ機能が有効な場合、ユーザーメッセージとアシスタント応答を保存
+                if memory_enabled:
+                    add_message(session_id, "user", latest_user_message)
+                    add_message(session_id, "assistant", response_text)
+                
                 # 応答メッセージを作成
                 response = ChatCompletionResponse(
                     message=Message(
@@ -143,7 +176,8 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                         "completion_tokens": 0,
                         "total_tokens": 0,
                         "time_seconds": round(time.time() - start_time, 2),
-                    }
+                    },
+                    session_id=session_id
                 )
                 
                 return response
@@ -151,7 +185,7 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
         if data.stream:
             async def streaming_generator():
                 try:
-                    prompt = chat_model.format_prompt(chat_messages)
+                    prompt = chat_model.format_prompt(chat_messages, session_id if memory_enabled else None)
                     for text_chunk in model.generate_text(
                         prompt=prompt,
                         max_tokens=data.max_tokens,
@@ -165,6 +199,15 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                     logger.error(f"ストリーミング生成中にエラーが発生しました: {str(e)}")
                     yield f"data: [ERROR] {str(e)}\n\n"
                 finally:
+                    # ストリーミング完了後、メッセージを保存
+                    if memory_enabled:
+                        try:
+                            add_message(session_id, "user", latest_user_message)
+                            # ストリーミングの場合、応答全体を取得できないため、保存は行わない
+                        except Exception as save_error:
+                            logger.error(f"メッセージ保存中にエラーが発生しました: {str(save_error)}")
+                    
+                    # ストリーミング終了を通知
                     yield "data: [DONE]\n\n"
             
             return StreamingResponse(
@@ -173,7 +216,7 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
             )
         else:
             # プロンプトを整形してモデルに送信
-            prompt = chat_model.format_prompt(chat_messages)
+            prompt = chat_model.format_prompt(chat_messages, session_id if memory_enabled else None)
             response_text = model.generate_text(
                 prompt=prompt,
                 max_tokens=data.max_tokens,
@@ -182,6 +225,11 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                 top_k=data.top_k,
                 stream=False,
             )
+            
+            # メモリ機能が有効な場合、ユーザーメッセージとアシスタント応答を保存
+            if memory_enabled:
+                add_message(session_id, "user", latest_user_message)
+                add_message(session_id, "assistant", response_text)
             
             # トークン使用量の計算（これは推定です）
             try:
@@ -203,7 +251,113 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                     "completion_tokens": output_tokens,
                     "total_tokens": input_tokens + output_tokens,
                     "time_seconds": round(time.time() - start_time, 2),
-                }
+                },
+                session_id=session_id
+            )
+            
+            return response
+    
+    except Exception as e:
+        logger.error(f"チャット生成中にエラーが発生しました: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"チャット生成中にエラーが発生しました: {str(e)}",
+        )
+
+@router.post(
+    "/chat/new-session",
+    response_model=ChatCompletionResponse,
+    summary="新しいセッションでチャット応答を生成する",
+    description="新しいセッションを作成してチャット応答を生成します",
+    dependencies=[Depends(check_rate_limit)],
+)
+async def chat_with_new_session(request: Request, data: ChatCompletionRequest):
+    """
+    新しいセッションでチャット応答を生成する
+    
+    * messages: チャットメッセージのリスト（最後はユーザーからのものである必要があります）
+    * max_tokens: 生成する最大トークン数
+    * temperature: 温度パラメータ（高いほどランダム）
+    * top_p: top-p サンプリングのパラメータ
+    * top_k: top-k サンプリングのパラメータ
+    * stream: ストリーミング生成を行うかどうか
+    * session_title: セッションのタイトル（指定しない場合は自動生成）
+    """
+    start_time = time.time()
+    
+    try:
+        chat_model = get_chat_model()
+        
+        # メッセージリストをChatMessageオブジェクトに変換
+        chat_messages = [
+            ChatMessage(role=msg.role, content=msg.content)
+            for msg in data.messages
+        ]
+        
+        # セッションタイトル（指定がなければ、ユーザーの最初のメッセージから生成）
+        session_title = getattr(data, 'session_title', None)
+        if not session_title and chat_messages and chat_messages[0].role == "user":
+            # 最初のユーザーメッセージの先頭20文字をタイトルとして使用
+            session_title = chat_messages[0].content[:20] + "..."
+        
+        # 新しいセッションで応答を生成
+        result = chat_model.generate_with_new_session(
+            messages=chat_messages,
+            title=session_title,
+            max_tokens=data.max_tokens,
+            temperature=data.temperature,
+            top_p=data.top_p,
+            top_k=data.top_k,
+            stream=data.stream,
+        )
+        
+        if data.stream:
+            async def streaming_generator():
+                try:
+                    for text_chunk in result["response"]:
+                        yield f"data: {text_chunk}\n\n"
+                except Exception as e:
+                    logger.error(f"ストリーミング生成中にエラーが発生しました: {str(e)}")
+                    yield f"data: [ERROR] {str(e)}\n\n"
+                finally:
+                    # セッションIDを含めて終了を通知
+                    yield f"data: [SESSION]{result['session_id']}\n\n"
+                    yield "data: [DONE]\n\n"
+            
+            return StreamingResponse(
+                streaming_generator(),
+                media_type="text/event-stream",
+            )
+        else:
+            # 応答テキスト
+            response_text = result["response"]
+            session_id = result["session_id"]
+            
+            # トークン使用量の計算（推定）
+            try:
+                tokenizer = get_tokenizer()
+                prompt = chat_model.format_prompt(chat_messages)
+                input_tokens = len(tokenizer.encode(prompt))
+                output_tokens = len(tokenizer.encode(response_text))
+            except:
+                # トークン化に失敗した場合、単語数で代用
+                prompt = " ".join([msg.content for msg in chat_messages])
+                input_tokens = len(prompt.split())
+                output_tokens = len(response_text.split())
+            
+            # レスポンスの作成
+            response = ChatCompletionResponse(
+                message=Message(
+                    role="assistant",
+                    content=response_text
+                ),
+                usage={
+                    "prompt_tokens": input_tokens,
+                    "completion_tokens": output_tokens,
+                    "total_tokens": input_tokens + output_tokens,
+                    "time_seconds": round(time.time() - start_time, 2),
+                },
+                session_id=session_id
             )
             
             return response
