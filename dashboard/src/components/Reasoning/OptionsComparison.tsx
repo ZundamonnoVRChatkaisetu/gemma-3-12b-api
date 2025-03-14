@@ -1,17 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import { reasoningService, DetailLevel, ComparisonResult } from "@/lib/services/reasoning-service";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { reasoningService, DetailLevel, ComparisonResult } from "../../lib/services/reasoning-service";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card";
+import { Textarea } from "../../components/ui/textarea";
+import { Label } from "../../components/ui/label";
+import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { ReloadIcon, PlusIcon, TrashIcon, TrophyIcon } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/components/ui/use-toast";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Progress } from "../../components/ui/progress";
+import { useToast } from "../../components/ui/use-toast";
+import { Input } from "../../components/ui/input";
+import { Badge } from "../../components/ui/badge";
 
 const detailLevelOptions = [
   { value: "low", label: "簡潔" },
