@@ -13,7 +13,7 @@ from ..models.smart_assistant import get_smart_assistant
 from ..models.schemas import ChatCompletionRequest, ChatCompletionResponse, Message
 from ..core.dependencies import check_rate_limit
 from ..core.database import get_memory_setting, get_session, create_session, add_message
-from ..core.database import store_user_memory, get_user_memory, delete_user_memory
+from ..core.database import store_user_memory, get_user_memory, delete_user_memory, get_all_user_memories
 from .user_memory import detect_memory_intent, extract_key_value_from_memory_text
 
 logger = logging.getLogger(__name__)
@@ -102,6 +102,16 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                         response_text = f"「{content}」についての記憶を忘れました。"
                     else:
                         response_text = f"「{content}」についての記憶はありませんでした。"
+                
+                elif op_type == "list_all":
+                    # すべての記憶を一覧表示
+                    memories = get_all_user_memories()
+                    if memories and len(memories) > 0:
+                        response_text = "現在、以下の内容を記憶しています：\n\n"
+                        for i, memory in enumerate(memories, 1):
+                            response_text += f"{i}. 「{memory['key']}」: {memory['value']}\n"
+                    else:
+                        response_text = "現在、記憶している内容はありません。"
                 
                 # メモリ機能が有効な場合、ユーザーメッセージとアシスタント応答を保存
                 if memory_enabled:
@@ -279,7 +289,6 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
             # ユーザー定義記憶をプロンプトに追加
             if user_memory_enabled:
                 try:
-                    from ..core.database import get_all_user_memories
                     memories = get_all_user_memories()
                     
                     if memories:
