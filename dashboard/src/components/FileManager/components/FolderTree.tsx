@@ -41,8 +41,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ currentPath, loadFileList }) =>
   const initializeTree = async () => {
     try {
       // ドライブ情報を取得
-      const response = await fetch(`${API_BASE_URL}/api/v1/files/drives`)
-      const drivesData = await response.json()
+      const drivesResponse = await fetch(`${API_BASE_URL}/api/v1/files/drives`)
+      const drivesData = await drivesResponse.json()
       
       // 特殊フォルダを含む初期ツリーデータを作成
       const initialTree: TreeNode[] = [
@@ -132,8 +132,27 @@ const FolderTree: React.FC<FolderTreeProps> = ({ currentPath, loadFileList }) =>
     updateNodeLoadingState(node.path, true)
     
     try {
-      // サブフォルダを取得
-      const response = await fetch(`${API_BASE_URL}/api/v1/files/list?path=${encodeURIComponent(node.path)}`)
+      // サブフォルダを取得 - URLエンコーディングと詳細なエラーハンドリングを追加
+      const encodedPath = encodeURIComponent(node.path)
+      const listUrl = new URL(`${API_BASE_URL}/api/v1/files/list`)
+      listUrl.searchParams.append('path', encodedPath)
+      listUrl.searchParams.append('sort_by', 'name')
+      listUrl.searchParams.append('sort_desc', 'false')
+      listUrl.searchParams.append('show_hidden', 'false')
+
+      const response = await fetch(listUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+      }
+
       const data = await response.json()
       
       // フォルダのみをフィルタリング
@@ -149,6 +168,9 @@ const FolderTree: React.FC<FolderTreeProps> = ({ currentPath, loadFileList }) =>
       })))
     } catch (error) {
       console.error('サブフォルダ読み込みエラー:', error)
+      
+      // エラー時のユーザーフィードバック
+      alert(`フォルダの読み込み中にエラーが発生しました: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       // ノードのローディング状態を更新
       updateNodeLoadingState(node.path, false)
