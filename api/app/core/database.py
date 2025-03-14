@@ -74,12 +74,25 @@ def init_db():
         )
         """)
         
+        # ユーザー定義記憶テーブル
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_memories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            source_session_id TEXT
+        )
+        """)
+        
         # デフォルト設定の挿入
         default_settings = [
             ("max_context_messages", "20", "会話履歴で保持する最大メッセージ数"),
             ("memory_enabled", "true", "メモリ機能の有効・無効"),
             ("auto_save_for_training", "true", "質の高い会話を自動的にトレーニングデータとして保存するか"),
             ("quality_threshold", "7", "会話品質の閾値（1-10、高いほど良質）"),
+            ("user_memory_enabled", "true", "ユーザー定義記憶機能の有効・無効"),
         ]
         
         for key, value, desc in default_settings:
@@ -361,6 +374,93 @@ def mark_training_data_used(data_id: int) -> bool:
     except Exception as e:
         conn.rollback()
         logger.error(f"トレーニングデータの使用済みマーク中にエラーが発生しました: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+# ユーザー定義記憶管理関数
+def store_user_memory(key: str, value: str, session_id: Optional[str] = None) -> int:
+    """ユーザー定義記憶を保存または更新する"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        
+        # 既存のキーがあるか確認
+        cursor.execute("SELECT id FROM user_memories WHERE key = ?", (key,))
+        existing_row = cursor.fetchone()
+        
+        if existing_row:
+            # 既存のキーを更新
+            cursor.execute(
+                "UPDATE user_memories SET value = ?, updated_at = ?, source_session_id = ? WHERE key = ?",
+                (value, datetime.now().isoformat(), session_id, key)
+            )
+            memory_id = existing_row[0]
+        else:
+            # 新しいキーを作成
+            cursor.execute(
+                "INSERT INTO user_memories (key, value, created_at, updated_at, source_session_id) VALUES (?, ?, ?, ?, ?)",
+                (key, value, datetime.now().isoformat(), datetime.now().isoformat(), session_id)
+            )
+            memory_id = cursor.lastrowid
+        
+        conn.commit()
+        return memory_id
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"ユーザー定義記憶の保存中にエラーが発生しました: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+def get_user_memory(key: str) -> Optional[Dict[str, Any]]:
+    """ユーザー定義記憶を取得する"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM user_memories WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        
+        if row:
+            return dict(row)
+        
+        return None
+    except Exception as e:
+        logger.error(f"ユーザー定義記憶の取得中にエラーが発生しました: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+def get_all_user_memories() -> List[Dict[str, Any]]:
+    """すべてのユーザー定義記憶を取得する"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM user_memories ORDER BY updated_at DESC")
+        rows = cursor.fetchall()
+        
+        memories = []
+        for row in rows:
+            memories.append(dict(row))
+        
+        return memories
+    except Exception as e:
+        logger.error(f"ユーザー定義記憶一覧の取得中にエラーが発生しました: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+def delete_user_memory(key: str) -> bool:
+    """ユーザー定義記憶を削除する"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM user_memories WHERE key = ?", (key,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"ユーザー定義記憶の削除中にエラーが発生しました: {str(e)}")
         raise
     finally:
         conn.close()
