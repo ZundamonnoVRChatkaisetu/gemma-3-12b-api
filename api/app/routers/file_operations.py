@@ -115,7 +115,7 @@ if not os.path.exists(DEFAULT_BASE_DIR):
     os.makedirs(DEFAULT_BASE_DIR, exist_ok=True)
 
 # アクセス可能なディレクトリリスト（ここに複数設定可能）
-ALLOWED_DIRS = [DEFAULT_BASE_DIR]
+ALLOWED_DIRS = [DEFAULT_BASE_DIR,"C:"]
 
 # アクセス禁止パスパターンのリスト（正規表現）
 BLOCKED_PATH_PATTERNS = [
