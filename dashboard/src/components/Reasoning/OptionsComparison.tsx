@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, PlusIcon, TrashIcon, TrophyIcon } from "lucide-react";
+import { RotateCw, PlusIcon, TrashIcon, TrophyIcon } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
@@ -259,7 +259,7 @@ export function OptionsComparison() {
               <Button type="submit" disabled={isLoading} className="w-full">
                 {isLoading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <RotateCw className="mr-2 h-4 w-4 animate-spin" />
                     比較中...
                   </>
                 ) : (
