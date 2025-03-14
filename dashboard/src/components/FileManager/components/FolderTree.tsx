@@ -5,7 +5,7 @@ import {
   ChevronDown, 
   ChevronRight, 
   Computer, 
-  Laptop,  // Desktopの代わりに
+  Laptop,  
   Folder, 
   FolderOpen, 
   HardDrive, 
@@ -117,13 +117,133 @@ const FolderTree: React.FC<FolderTreeProps> = ({ currentPath, loadFileList }) =>
     }
   }
 
-  // 以下の関数の実装は省略（以前のコードと同じ）
-  // loadChildFolders, updateNodeLoadingState, updateNodeChildren等
+  // フォルダ展開時にサブフォルダを読み込む
+  const loadChildFolders = async (node: TreeNode) => {
+    if (node.children.length > 0 && expandedNodes[node.path]) {
+      // すでに子を読み込み済みで、展開済みの場合は折りたたむだけ
+      setExpandedNodes(prev => ({ ...prev, [node.path]: !prev[node.path] }))
+      return
+    }
+    
+    // 展開状態を更新
+    setExpandedNodes(prev => ({ ...prev, [node.path]: true }))
+    
+    // ノードのローディング状態を更新
+    updateNodeLoadingState(node.path, true)
+    
+    try {
+      // サブフォルダを取得
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/list?path=${encodeURIComponent(node.path)}`)
+      const data = await response.json()
+      
+      // フォルダのみをフィルタリング
+      const folders = data.files.filter((file: FileInfo) => file.is_dir)
+      
+      // 子ノードを更新
+      updateNodeChildren(node.path, folders.map((folder: FileInfo) => ({
+        name: folder.name,
+        path: folder.path,
+        children: [],
+        isLoading: false,
+        isExpanded: false
+      })))
+    } catch (error) {
+      console.error('サブフォルダ読み込みエラー:', error)
+    } finally {
+      // ノードのローディング状態を更新
+      updateNodeLoadingState(node.path, false)
+    }
+  }
 
-  // レンダリング関数（以前のコードと同じ）
+  // ツリーノードの特定のノードのローディング状態を更新
+  const updateNodeLoadingState = (path: string, isLoading: boolean) => {
+    setTreeData(prevData => updateNodeInTree(prevData, path, node => ({
+      ...node,
+      isLoading
+    })))
+  }
+
+  // ツリーノードの特定のノードの子を更新
+  const updateNodeChildren = (path: string, children: TreeNode[]) => {
+    setTreeData(prevData => updateNodeInTree(prevData, path, node => ({
+      ...node,
+      children
+    })))
+  }
+
+  // ツリー内の特定ノードを更新するヘルパー関数
+  const updateNodeInTree = (
+    nodes: TreeNode[],
+    path: string,
+    updateFn: (node: TreeNode) => TreeNode
+  ): TreeNode[] => {
+    return nodes.map(node => {
+      if (node.path === path) {
+        return updateFn(node)
+      } else if (node.children.length > 0) {
+        return {
+          ...node,
+          children: updateNodeInTree(node.children, path, updateFn)
+        }
+      }
+      return node
+    })
+  }
+
+  // フォルダをクリックした時の処理
+  const handleFolderClick = (node: TreeNode) => {
+    loadFileList(node.path)
+  }
+
+  // フォルダの展開アイコンをクリックした時の処理
+  const handleExpandClick = (node: TreeNode, e: React.MouseEvent) => {
+    e.stopPropagation()
+    loadChildFolders(node)
+  }
+
+  // ツリーノードを再帰的にレンダリング
   const renderTreeNodes = (nodes: TreeNode[], level = 0) => {
     return nodes.map(node => (
-      // ... 以前のレンダリングロジック
+      <div key={node.path} className="select-none">
+        <div
+          className={cn(
+            "flex items-center py-1 rounded hover:bg-gray-100 cursor-pointer",
+            currentPath === node.path ? "bg-blue-100" : ""
+          )}
+          style={{ paddingLeft: `${level * 16 + 4}px` }}
+        >
+          <span
+            onClick={(e) => handleExpandClick(node, e)}
+            className="w-5 flex items-center justify-center"
+          >
+            {node.isLoading ? (
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+            ) : (
+              expandedNodes[node.path] ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )
+            )}
+          </span>
+          <span
+            className="flex items-center gap-1 truncate"
+            onClick={() => handleFolderClick(node)}
+          >
+            {node.icon || (expandedNodes[node.path] ? (
+              <FolderOpen size={16} className="text-yellow-500" />
+            ) : (
+              <Folder size={16} className="text-yellow-500" />
+            ))}
+            <span className="truncate text-sm">{node.name}</span>
+          </span>
+        </div>
+        {expandedNodes[node.path] && node.children.length > 0 && (
+          <div className="ml-2">
+            {renderTreeNodes(node.children, level + 1)}
+          </div>
+        )}
+      </div>
     ))
   }
 
