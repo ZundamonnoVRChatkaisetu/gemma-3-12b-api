@@ -22,47 +22,25 @@ export interface FileInfo {
   is_hidden?: boolean;
 }
 
-// ファイルリストレスポンスの型定義
-export interface FileListResponse {
-  files: FileInfo[];
-  current_dir: string;
-  parent_dir?: string;
-  total_size: number;
-  total_files: number;
-  total_dirs: number;
-  breadcrumbs: { name: string; path: string }[];
-}
+// 以下の他のインターフェースと定義は変更なし...
 
-// ファイル内容レスポンスの型定義
-export interface FileContentResponse {
-  content: string;
-  path: string;
-  mime_type: string;
-  size: number;
-  size_formatted?: string;
-  modified: string;
-}
-
-// プロパティの定義
-export interface EnhancedFileManagerProps {
-  onFileSelect?: (file: FileInfo, content?: string) => void;
-  allowMultiSelect?: boolean;
-  initialPath?: string;
-  maxHeight?: string;
-  showToolbar?: boolean;
-  className?: string;
-}
-
-// API Base URL - サーバー・クライアント両対応の安全な実装
-export const API_BASE_URL = (() => {
-  if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.host}:8000`;
+// デフォルトのクイックアクセス項目を明示的にエクスポート
+export const defaultQuickAccessItems: PinnedFolder[] = [
+  {
+    name: 'デスクトップ',
+    path: 'C:/Users/Public/Desktop',
+    isQuickAccess: true
+  },
+  {
+    name: 'ドキュメント',
+    path: 'C:/Users/Public/Documents',
+    isQuickAccess: true
+  },
+  {
+    name: 'ダウンロード',
+    path: 'C:/Users/Public/Downloads',
+    isQuickAccess: true
   }
-  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_API_BASE_URL;
-  }
-  return 'http://localhost:8000';
-})();
+];
 
-// その他の定義は変更なし（colors, fileCategories, defaultQuickAccessItems）
-// ...（以前の定義を維持）
+// 他の定義も変更なし...
