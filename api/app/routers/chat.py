@@ -13,8 +13,8 @@ from ..models.smart_assistant import get_smart_assistant
 from ..models.schemas import ChatCompletionRequest, ChatCompletionResponse, Message
 from ..core.dependencies import check_rate_limit
 from ..core.database import get_memory_setting, get_session, create_session, add_message
-from ..core.database import store_user_memory, get_user_memory, delete_user_memory, get_all_user_memories
-from .user_memory import detect_memory_intent, extract_key_value_from_memory_text
+from ..core.database import store_user_memory, get_user_memory, delete_user_memory, get_all_user_memories, delete_all_user_memories
+from .user_memory import detect_memory_intent, extract_key_value_from_memory_text, get_memory_help_text
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,14 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                     else:
                         response_text = f"「{content}」についての記憶はありませんでした。"
                 
+                elif op_type == "forget_all":
+                    # すべての記憶を削除
+                    count = delete_all_user_memories()
+                    if count > 0:
+                        response_text = f"すべての記憶（{count}件）を忘れました。"
+                    else:
+                        response_text = f"記憶はありませんでした。"
+                
                 elif op_type == "list_all":
                     # すべての記憶を一覧表示
                     memories = get_all_user_memories()
@@ -112,6 +120,10 @@ async def chat_completion(request: Request, data: ChatCompletionRequest):
                             response_text += f"{i}. 「{memory['key']}」: {memory['value']}\n"
                     else:
                         response_text = "現在、記憶している内容はありません。"
+                        
+                elif op_type == "help":
+                    # 記憶操作のヘルプを表示
+                    response_text = get_memory_help_text()
                 
                 # メモリ機能が有効な場合、ユーザーメッセージとアシスタント応答を保存
                 if memory_enabled:
