@@ -215,30 +215,8 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      <header className="bg-white shadow p-4">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-bold">Gemma 3 チャットインターフェース</h1>
-          {messages.length > 0 && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button 
-                    onClick={copyAllChat}
-                    className="bg-gray-100 text-gray-600 hover:bg-gray-200 p-2 rounded-md flex items-center gap-1"
-                  >
-                    <Copy size={16} />
-                    <span className="text-sm">全チャットをコピー</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>全ての会話をコピーします</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
-      </header>
-      
-      <main className="flex-1 overflow-auto p-4">
+    <div className="flex flex-col h-[calc(100vh-64px)]">
+      <div className="flex-1 overflow-auto p-4">
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* ファイルマネージャー */}
           {showFileManager && (
@@ -256,7 +234,27 @@ export default function ChatInterface() {
           <div className={`${
             showFileManager ? 'md:col-span-2' : 'md:col-span-3'
           } flex flex-col h-[calc(100vh-150px)]`}>
-            <div className="flex-1 overflow-auto bg-white p-4 rounded-lg shadow-md">
+            <div className="flex-1 overflow-auto bg-white p-4 rounded-lg shadow-sm">
+              {/* 全チャットをコピーするボタン */}
+              {messages.length > 0 && (
+                <div className="flex justify-end mb-4">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button 
+                          onClick={copyAllChat}
+                          className="bg-gray-100 text-gray-600 hover:bg-gray-200 p-2 rounded-md flex items-center gap-1"
+                        >
+                          <Copy size={16} />
+                          <span className="text-sm">全チャットをコピー</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>全ての会話をコピーします</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              )}
+              
               {/* メッセージがない場合は案内を表示 */}
               {messages.length === 0 && (
                 <div className="text-center py-20">
@@ -450,7 +448,7 @@ export default function ChatInterface() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }
