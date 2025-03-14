@@ -2,150 +2,191 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import Dict, List, Optional, Any
 import logging
 import time
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from ..models.model_factory import get_model, get_tokenizer
 from ..core.dependencies import check_rate_limit
+from ..models.reasoning import get_reasoning_engine
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-class ReasoningRequest(BaseModel):
-    """
-    推論リクエストのスキーマ
-    """
-    question: str = Field(..., description="推論のための質問")
-    context: Optional[str] = Field(None, description="推論のためのコンテキスト")
-    steps: Optional[int] = Field(5, description="思考ステップの数", ge=1, le=10)
-    detail_level: Optional[str] = Field("medium", description="詳細レベル (low, medium, high)")
-    
+class StepByStepRequest(BaseModel):
+    """ステップバイステップ推論リクエスト"""
+    question: str
+    context: Optional[str] = None
+    detail_level: Optional[str] = "medium"
+
+class EvaluateStatementRequest(BaseModel):
+    """文の評価リクエスト"""
+    statement: str
+    context: Optional[str] = None
+    detail_level: Optional[str] = "medium"
+
+class CompareOptionsRequest(BaseModel):
+    """選択肢の比較リクエスト"""
+    question: str
+    options: List[str]
+    criteria: Optional[List[str]] = None
+    context: Optional[str] = None
+    detail_level: Optional[str] = "medium"
+
 class ReasoningResponse(BaseModel):
-    """
-    推論レスポンスのスキーマ
-    """
-    reasoning_steps: List[str] = Field(..., description="推論ステップ")
-    conclusion: str = Field(..., description="推論の結論")
-    confidence: float = Field(..., description="推論の確信度", ge=0.0, le=1.0)
-    usage: Dict[str, Any] = Field(..., description="使用量情報")
+    """推論応答"""
+    result: Dict[str, Any]
+    time_seconds: float
 
 @router.post(
-    "/reasoning", 
+    "/reasoning/step-by-step",
     response_model=ReasoningResponse,
-    summary="推論を実行する",
-    description="与えられた質問に対して段階的に推論を行います",
+    summary="ステップバイステップ推論を実行",
+    description="問題や質問に対してステップバイステップの思考プロセスで推論を実行します",
     dependencies=[Depends(check_rate_limit)],
 )
-async def execute_reasoning(request: Request, data: ReasoningRequest):
+async def step_by_step_reasoning(request: Request, data: StepByStepRequest):
     """
-    段階的な推論を行うエンドポイント
+    ステップバイステップ推論を実行
     
-    * question: 推論のための質問
-    * context: 推論のためのコンテキスト（オプション）
-    * steps: 思考ステップの数（デフォルト: 5）
-    * detail_level: 詳細レベル（low, medium, high）
+    * question: 質問/問題
+    * context: 追加のコンテキスト情報（オプション）
+    * detail_level: 推論の詳細レベル（"low", "medium", "high"）
     """
     start_time = time.time()
     
     try:
-        model = get_model()
-        tokenizer = get_tokenizer()
+        reasoning_engine = get_reasoning_engine()
         
-        # 推論プロンプトの構築
-        prompt = f"""以下の質問に対して段階的に推論してください。
-質問: {data.question}
-"""
-        
-        if data.context:
-            prompt += f"\nコンテキスト情報:\n{data.context}\n"
-        
-        prompt += f"""
-あなたは、上記の質問に対して論理的に考えます。
-ステップバイステップで、論理的な思考プロセスを最大{data.steps}ステップで示してください。
-各ステップでは論理的推論、因果関係の分析、または仮説の検証をしてください。
-
-出力形式:
-思考ステップ1: <最初の推論ステップ>
-思考ステップ2: <2番目の推論ステップ>
-...
-思考ステップ{data.steps}: <最後の推論ステップ>
-結論: <最終的な結論>
-確信度: <0.0から1.0の間の数値。1.0が最も確信度が高い>
-
-詳細レベル: {data.detail_level}（low=簡潔、medium=標準、high=詳細）
-
-"""
+        # 詳細レベルの検証
+        valid_detail_levels = ["low", "medium", "high"]
+        if data.detail_level not in valid_detail_levels:
+            data.detail_level = "medium"
         
         # 推論の実行
-        reasoning_output = model.generate_text(
-            prompt=prompt,
-            max_tokens=2000,
-            temperature=0.3,  # 低い温度で論理的な推論を促進
-            top_p=0.9,
-            top_k=40,
-            stream=False,
+        result = reasoning_engine.perform_step_by_step_reasoning(
+            question=data.question,
+            context=data.context,
+            detail_level=data.detail_level
         )
         
-        # 出力を解析
-        lines = reasoning_output.strip().split('\n')
-        reasoning_steps = []
-        conclusion = ""
-        confidence = 0.5  # デフォルト値
+        time_taken = round(time.time() - start_time, 2)
         
-        for line in lines:
-            if line.startswith("思考ステップ"):
-                # "思考ステップN: " の部分を除去
-                step_content = line.split(":", 1)[1].strip() if ":" in line else line
-                reasoning_steps.append(step_content)
-            elif line.startswith("結論:"):
-                conclusion = line[3:].strip()
-            elif line.startswith("確信度:"):
-                try:
-                    confidence_str = line[4:].strip()
-                    # 可能な形式のパース ("0.8" または "0.8 / 1.0" など)
-                    if "/" in confidence_str:
-                        confidence_parts = confidence_str.split("/")
-                        if len(confidence_parts) == 2:
-                            confidence = float(confidence_parts[0].strip()) / float(confidence_parts[1].strip())
-                    else:
-                        confidence = float(confidence_str)
-                    
-                    # 範囲の制限
-                    confidence = max(0.0, min(1.0, confidence))
-                except ValueError:
-                    # パースエラーの場合はデフォルト値を使用
-                    confidence = 0.5
-            
-        # レスポンスが空の場合、デフォルトの応答を提供
-        if not reasoning_steps:
-            reasoning_steps = ["推論ステップが提供されませんでした。"]
-        if not conclusion:
-            conclusion = "結論が導き出せませんでした。"
-            
-        # トークン使用量の計算（これは推定です）
-        try:
-            input_tokens = len(tokenizer.encode(prompt))
-            output_tokens = len(tokenizer.encode(reasoning_output))
-        except:
-            # トークン化に失敗した場合、単語数で代用
-            input_tokens = len(prompt.split())
-            output_tokens = len(reasoning_output.split())
-        
+        # レスポンスの作成
         return ReasoningResponse(
-            reasoning_steps=reasoning_steps,
-            conclusion=conclusion,
-            confidence=confidence,
-            usage={
-                "prompt_tokens": input_tokens,
-                "completion_tokens": output_tokens,
-                "total_tokens": input_tokens + output_tokens,
-                "time_seconds": round(time.time() - start_time, 2),
-            }
+            result=result,
+            time_seconds=time_taken
         )
     
     except Exception as e:
-        logger.error(f"推論実行中にエラーが発生しました: {str(e)}")
+        logger.error(f"ステップバイステップ推論中にエラーが発生しました: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"推論実行中にエラーが発生しました: {str(e)}",
+            detail=f"ステップバイステップ推論中にエラーが発生しました: {str(e)}",
+        )
+
+@router.post(
+    "/reasoning/evaluate-statement",
+    response_model=ReasoningResponse,
+    summary="文の真偽を評価",
+    description="与えられた文の真偽を評価し、確信度と根拠を提示します",
+    dependencies=[Depends(check_rate_limit)],
+)
+async def evaluate_statement(request: Request, data: EvaluateStatementRequest):
+    """
+    文の真偽を評価
+    
+    * statement: 評価する文
+    * context: 追加のコンテキスト情報（オプション）
+    * detail_level: 推論の詳細レベル（"low", "medium", "high"）
+    """
+    start_time = time.time()
+    
+    try:
+        reasoning_engine = get_reasoning_engine()
+        
+        # 詳細レベルの検証
+        valid_detail_levels = ["low", "medium", "high"]
+        if data.detail_level not in valid_detail_levels:
+            data.detail_level = "medium"
+        
+        # 評価の実行
+        result = reasoning_engine.evaluate_statement(
+            statement=data.statement,
+            context=data.context,
+            detail_level=data.detail_level
+        )
+        
+        time_taken = round(time.time() - start_time, 2)
+        
+        # レスポンスの作成
+        return ReasoningResponse(
+            result=result,
+            time_seconds=time_taken
+        )
+    
+    except Exception as e:
+        logger.error(f"文の評価中にエラーが発生しました: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"文の評価中にエラーが発生しました: {str(e)}",
+        )
+
+@router.post(
+    "/reasoning/compare-options",
+    response_model=ReasoningResponse,
+    summary="選択肢の比較",
+    description="複数の選択肢を比較して最適なものを選択します",
+    dependencies=[Depends(check_rate_limit)],
+)
+async def compare_options(request: Request, data: CompareOptionsRequest):
+    """
+    選択肢の比較
+    
+    * question: 選択のための質問
+    * options: 比較する選択肢のリスト
+    * criteria: 評価基準（オプション）
+    * context: 追加のコンテキスト情報（オプション）
+    * detail_level: 推論の詳細レベル（"low", "medium", "high"）
+    """
+    start_time = time.time()
+    
+    try:
+        reasoning_engine = get_reasoning_engine()
+        
+        # 選択肢の検証
+        if not data.options or len(data.options) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="比較には少なくとも2つの選択肢が必要です",
+            )
+        
+        # 詳細レベルの検証
+        valid_detail_levels = ["low", "medium", "high"]
+        if data.detail_level not in valid_detail_levels:
+            data.detail_level = "medium"
+        
+        # 比較の実行
+        result = reasoning_engine.compare_options(
+            question=data.question,
+            options=data.options,
+            criteria=data.criteria,
+            context=data.context,
+            detail_level=data.detail_level
+        )
+        
+        time_taken = round(time.time() - start_time, 2)
+        
+        # レスポンスの作成
+        return ReasoningResponse(
+            result=result,
+            time_seconds=time_taken
+        )
+    
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        
+        logger.error(f"選択肢の比較中にエラーが発生しました: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"選択肢の比較中にエラーが発生しました: {str(e)}",
         )
