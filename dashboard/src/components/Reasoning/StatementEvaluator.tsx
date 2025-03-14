@@ -1,16 +1,16 @@
 "use client";
 
 import React, { useState } from "react";
-import { reasoningService, DetailLevel, EvaluationResult } from "../../lib/services/reasoning-service";
-import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card";
-import { Textarea } from "../../components/ui/textarea";
-import { Label } from "../../components/ui/label";
-import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
-import { ReloadIcon, CheckCircleIcon, XCircleIcon, HelpCircleIcon } from "lucide-react";
-import { Progress } from "../../components/ui/progress";
-import { useToast } from "../../components/ui/use-toast";
-import { Badge } from "../../components/ui/badge";
+import { reasoningService, DetailLevel, EvaluationResult } from "@/lib/services/reasoning-service";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { CheckCircleIcon, XCircleIcon, HelpCircleIcon, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/components/ui/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 const detailLevelOptions = [
   { value: "low", label: "簡潔" },
@@ -157,7 +157,7 @@ export function StatementEvaluator() {
               <Button type="submit" disabled={isLoading} className="w-full">
                 {isLoading ? (
                   <>
-                    <ReloadIcon className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     評価中...
                   </>
                 ) : (
