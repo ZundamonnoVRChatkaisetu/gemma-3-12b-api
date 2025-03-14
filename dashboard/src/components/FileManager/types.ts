@@ -1,3 +1,12 @@
+"use client"
+
+// ピン止めフォルダの型定義
+export interface PinnedFolder {
+  path: string;
+  name: string;
+  isQuickAccess?: boolean;
+}
+
 // ファイル情報の型定義
 export interface FileInfo {
   name: string;
@@ -30,18 +39,19 @@ export interface FileContentResponse {
   path: string;
   mime_type: string;
   size: number;
+  size_formatted?: string;
   modified: string;
 }
 
-// ファイルマネージャープリファレンスの型定義
-export interface FileManagerPreferences {
-  theme: 'light' | 'dark' | 'system';
-  showHiddenFiles: boolean;
-  iconSize: number;
-  defaultView: 'list' | 'icons' | 'details';
-  confirmDelete: boolean;
-  showExtensions: boolean;
-  showStatusBar: boolean;
-  sortBy: string;
-  sortDirection: 'asc' | 'desc';
+// プロパティの定義
+export interface EnhancedFileManagerProps {
+  onFileSelect?: (file: FileInfo, content?: string) => void;
+  allowMultiSelect?: boolean;
+  initialPath?: string;
+  maxHeight?: string;
+  showToolbar?: boolean;
+  className?: string;
 }
+
+// API URL
+export const API_BASE_URL = 'http://localhost:8000';
