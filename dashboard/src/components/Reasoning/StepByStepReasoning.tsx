@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import { reasoningService, DetailLevel, StepByStepResult } from "../../lib/services/reasoning-service";
-import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card";
-import { Textarea } from "../../components/ui/textarea";
-import { Label } from "../../components/ui/label";
-import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
-import { ReloadIcon, CheckIcon } from "lucide-react";
-import { Progress } from "../../components/ui/progress";
-import { useToast } from "../../components/ui/use-toast";
+import { reasoningService, DetailLevel, StepByStepResult } from "@/lib/services/reasoning-service";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Loader2, CheckIcon } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/components/ui/use-toast";
 
 const detailLevelOptions = [
   { value: "low", label: "簡潔" },
@@ -129,7 +129,7 @@ export function StepByStepReasoning() {
               <Button type="submit" disabled={isLoading} className="w-full">
                 {isLoading ? (
                   <>
-                    <ReloadIcon className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     推論中...
                   </>
                 ) : (
