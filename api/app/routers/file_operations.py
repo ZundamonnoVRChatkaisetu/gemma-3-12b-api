@@ -107,15 +107,20 @@ class FilePropertiesResponse(BaseModel):
 # ユーザーのホームディレクトリからの相対パス
 USER_HOME = os.path.expanduser("~")
 
-# ユーザードキュメントディレクトリをデフォルトのベースディレクトリとして使用
-DEFAULT_BASE_DIR = os.path.join(USER_HOME, "Documents")
-if not os.path.exists(DEFAULT_BASE_DIR):
-    # Documentsが存在しない場合は、ホームディレクトリ直下に作業ディレクトリを作成
-    DEFAULT_BASE_DIR = os.path.join(USER_HOME, "gemma_workspace")
-    os.makedirs(DEFAULT_BASE_DIR, exist_ok=True)
+# 初期アクセス先をC:ドライブに設定
+# Windowsの場合はC:ドライブをデフォルトに設定
+if os.name == 'nt' and os.path.exists("C:"):
+    DEFAULT_BASE_DIR = "C:"
+else:
+    # Windowsでない場合や、C:ドライブがない場合は従来通りDocumentsを使用
+    DEFAULT_BASE_DIR = os.path.join(USER_HOME, "Documents")
+    if not os.path.exists(DEFAULT_BASE_DIR):
+        # Documentsが存在しない場合は、ホームディレクトリ直下に作業ディレクトリを作成
+        DEFAULT_BASE_DIR = os.path.join(USER_HOME, "gemma_workspace")
+        os.makedirs(DEFAULT_BASE_DIR, exist_ok=True)
 
 # アクセス可能なディレクトリリスト（ここに複数設定可能）
-ALLOWED_DIRS = [DEFAULT_BASE_DIR,"C:"]
+ALLOWED_DIRS = [DEFAULT_BASE_DIR, "C:"]
 
 # アクセス禁止パスパターンのリスト（正規表現）
 BLOCKED_PATH_PATTERNS = [
@@ -298,10 +303,10 @@ def validate_path(path: str) -> str:
             break
     
     if not is_allowed:
-        safe_path = os.path.relpath(DEFAULT_BASE_DIR, USER_HOME)
+        allowed_paths = ", ".join([d if d == "C:" else os.path.relpath(d, USER_HOME) for d in ALLOWED_DIRS])
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"アクセスが許可されたディレクトリは '{safe_path}' のみです。"
+            detail=f"アクセスが許可されたディレクトリは '{allowed_paths}' のみです。"
         )
     
     return abs_path
