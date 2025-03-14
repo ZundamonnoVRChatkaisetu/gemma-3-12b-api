@@ -7,6 +7,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from .chat_model import get_chat_model, Message
 from .brave_search import get_brave_search_client
 from .github_client import get_github_client
+from .reasoning import get_reasoning_engine
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class SmartAssistant:
         self.chat_model = get_chat_model()
         self.brave_search = get_brave_search_client()
         self.github_client = get_github_client()
+        self.reasoning_engine = get_reasoning_engine()
         
         # APIキーの状態をログに出力
         if self.brave_search.api_key:
@@ -221,6 +223,19 @@ class SmartAssistant:
             logger.error(f"JSONのパース中にエラーが発生しました: {str(e)}")
             return False, "", {}
     
+    def detect_reasoning_intent(self, user_message: str) -> Tuple[bool, str, Dict[str, Any]]:
+        """
+        ユーザーメッセージから推論意図を検出する
+        
+        Args:
+            user_message: ユーザーのメッセージ
+            
+        Returns:
+            Tuple[bool, str, Dict[str, Any]]: (推論意図があるか, 推論タイプ, パラメータ)
+        """
+        # 推論エンジンの検出関数を使用
+        return self.reasoning_engine.detect_reasoning_intent(user_message)
+    
     def perform_web_search(self, query: str, count: int = 5) -> Dict[str, Any]:
         """
         Web検索を実行する
@@ -344,6 +359,79 @@ class SmartAssistant:
                 "data": None
             }
     
+    def perform_reasoning(self, reasoning_type: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        推論を実行する
+        
+        Args:
+            reasoning_type: 推論タイプ
+            parameters: 推論パラメータ
+            
+        Returns:
+            Dict[str, Any]: 推論結果
+        """
+        try:
+            logger.info(f"推論を実行: タイプ='{reasoning_type}', パラメータ={parameters}")
+            
+            if reasoning_type == "step_by_step":
+                return {
+                    "success": True,
+                    "type": reasoning_type,
+                    "result": self.reasoning_engine.perform_step_by_step_reasoning(
+                        question=parameters.get("question", ""),
+                        context=parameters.get("context"),
+                        detail_level=parameters.get("detail_level", "medium")
+                    )
+                }
+            
+            elif reasoning_type == "evaluate_statement":
+                return {
+                    "success": True,
+                    "type": reasoning_type,
+                    "result": self.reasoning_engine.evaluate_statement(
+                        statement=parameters.get("question", ""),
+                        context=parameters.get("context"),
+                        detail_level=parameters.get("detail_level", "medium")
+                    )
+                }
+            
+            elif reasoning_type == "compare_options":
+                # オプションリストの確認
+                options = parameters.get("options", [])
+                if not options or len(options) < 2:
+                    return {
+                        "success": False,
+                        "message": "比較には少なくとも2つの選択肢が必要です",
+                        "result": None
+                    }
+                
+                return {
+                    "success": True,
+                    "type": reasoning_type,
+                    "result": self.reasoning_engine.compare_options(
+                        question=parameters.get("question", ""),
+                        options=options,
+                        criteria=parameters.get("criteria"),
+                        context=parameters.get("context"),
+                        detail_level=parameters.get("detail_level", "medium")
+                    )
+                }
+            
+            else:
+                return {
+                    "success": False,
+                    "message": f"不明な推論タイプです: {reasoning_type}",
+                    "result": None
+                }
+                
+        except Exception as e:
+            logger.error(f"推論中にエラーが発生しました: {str(e)}")
+            return {
+                "success": False,
+                "message": f"推論中にエラーが発生しました: {str(e)}",
+                "result": None
+            }
+    
     def enhance_response_with_search(self, query: str, user_message: str) -> str:
         """
         Web検索結果を含めた応答を生成する
@@ -465,6 +553,25 @@ class SmartAssistant:
         else:
             # その他の操作はシンプルに成功メッセージを返す
             return f"GitHub操作が成功しました: {result.get('message', '')}"
+    
+    def format_reasoning_result(self, result: Dict[str, Any]) -> str:
+        """
+        推論結果を整形する
+        
+        Args:
+            result: 推論結果
+            
+        Returns:
+            str: 整形された結果
+        """
+        if not result["success"]:
+            return f"推論エラー: {result.get('message', '不明なエラー')}"
+        
+        # 推論エンジンのフォーマット関数を使用
+        reasoning_type = result.get("type", "")
+        result_data = result.get("result", {})
+        
+        return self.reasoning_engine.format_reasoning_result(reasoning_type, result_data)
 
 # シングルトンインスタンスを取得する関数
 def get_smart_assistant() -> SmartAssistant:
