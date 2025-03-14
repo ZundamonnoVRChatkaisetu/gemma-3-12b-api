@@ -1,5 +1,3 @@
-"use client"
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   FileText, Folder, ArrowUp, RefreshCw, Plus, Upload, Download, Edit, Trash, 
@@ -39,6 +37,9 @@ import { toast } from '../../components/ui/use-toast';
 import { Progress } from '../../components/ui/progress';
 
 import { cn } from '../../lib/utils';
+
+// API Base URL
+const API_BASE_URL = 'http://localhost:8000';
 
 // ファイル情報の型定義
 interface FileInfo {
@@ -222,7 +223,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
   const loadFileList = useCallback(async (path = '') => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/v1/files/list?path=${encodeURIComponent(path)}&sort_by=${sortBy}&sort_desc=${sortDesc}&show_hidden=${showHidden}`);
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/list?path=${encodeURIComponent(path)}&sort_by=${sortBy}&sort_desc=${sortDesc}&show_hidden=${showHidden}`);
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -254,7 +255,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     setIsLoading(true);
     
     try {
-      const response = await fetch('/api/v1/files/search', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -376,7 +377,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
   const fetchFileContent = async (path: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/v1/files/read?path=${encodeURIComponent(path)}`);
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/read?path=${encodeURIComponent(path)}`);
       
       if (!response.ok) {
         if (response.status === 400) {
@@ -478,7 +479,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     
     setIsLoading(true);
     try {
-      const response = await fetch('/api/v1/files/write', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/write`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -526,7 +527,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/v1/files/delete?path=${encodeURIComponent(selectedFile.path)}`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/delete?path=${encodeURIComponent(selectedFile.path)}`, {
         method: 'DELETE',
       });
       
@@ -570,7 +571,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
       
       for (const file of selectedFiles) {
         try {
-          const response = await fetch(`/api/v1/files/delete?path=${encodeURIComponent(file.path)}`, {
+          const response = await fetch(`${API_BASE_URL}/api/v1/files/delete?path=${encodeURIComponent(file.path)}`, {
             method: 'DELETE',
           });
           
@@ -622,7 +623,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     
     setIsLoading(true);
     try {
-      const response = await fetch('/api/v1/files/rename', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/rename`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -668,7 +669,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     
     setIsLoading(true);
     try {
-      const response = await fetch('/api/v1/files/move', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/move`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -714,7 +715,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     
     setIsLoading(true);
     try {
-      const response = await fetch('/api/v1/files/copy', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/copy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -762,7 +763,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     
     setIsLoading(true);
     try {
-      const response = await fetch('/api/v1/files/mkdir', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/mkdir`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -808,7 +809,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     
     setIsLoading(true);
     try {
-      const response = await fetch('/api/v1/files/write', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/files/write`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -866,7 +867,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
         formData.append('path', currentPath);
         
         try {
-          const response = await fetch('/api/v1/files/upload', {
+          const response = await fetch(`${API_BASE_URL}/api/v1/files/upload`, {
             method: 'POST',
             body: formData,
           });
@@ -928,7 +929,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     
     try {
       // 新しいタブでダウンロードURLを開く
-      window.open(`/api/v1/files/download?path=${encodeURIComponent(file.path)}`, '_blank');
+      window.open(`${API_BASE_URL}/api/v1/files/download?path=${encodeURIComponent(file.path)}`, '_blank');
     } catch (error) {
       console.error('ダウンロードエラー:', error);
       toast({
@@ -983,7 +984,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
           let response;
           
           if (clipboard.action === 'copy') {
-            response = await fetch('/api/v1/files/copy', {
+            response = await fetch(`${API_BASE_URL}/api/v1/files/copy`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -994,7 +995,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
               }),
             });
           } else { // cut
-            response = await fetch('/api/v1/files/move', {
+            response = await fetch(`${API_BASE_URL}/api/v1/files/move`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -1839,7 +1840,7 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
         if (!selectedFile) return;
         
         try {
-          const response = await fetch(`/api/v1/files/properties?path=${encodeURIComponent(selectedFile.path)}`);
+          const response = await fetch(`${API_BASE_URL}/api/v1/files/properties?path=${encodeURIComponent(selectedFile.path)}`);
           
           if (!response.ok) {
             throw new Error('プロパティの取得に失敗しました');
