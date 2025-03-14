@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Pin } from 'lucide-react';
+import { cn } from '../../../lib/utils';
 import { FileInfo, FileListResponse } from '../types';
 import FileIcon from './FileIcon';
 
@@ -10,9 +11,10 @@ interface FileGridViewProps {
   filterFiles: (files: FileInfo[]) => FileInfo[];
   isSearching: boolean;
   selectedFiles: FileInfo[];
-  toggleFileSelection: (file: FileInfo, ctrlKey?: boolean) => void;
+  toggleFileSelection: (file: FileInfo, ctrlKey?: boolean, shiftKey?: boolean) => void;
   openFile: (file: FileInfo) => void;
   isPinned: (path: string) => boolean;
+  allowMultiSelect?: boolean;
 }
 
 const FileGridView: React.FC<FileGridViewProps> = ({
@@ -22,43 +24,47 @@ const FileGridView: React.FC<FileGridViewProps> = ({
   selectedFiles,
   toggleFileSelection,
   openFile,
-  isPinned
+  isPinned,
+  allowMultiSelect = false
 }) => {
   if (!fileList) return null;
   
   const filteredFiles = filterFiles(fileList.files);
   
   return (
-    <div className="h-full overflow-auto p-3">
+    <div className="h-full overflow-auto p-4">
       {filteredFiles.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          {isSearching ? '検索結果はありません' : 'ファイルがありません'}
+        <div className="flex justify-center items-center h-full text-gray-500">
+          {isSearching ? '検索結果はありません' : 'フォルダは空です'}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
           {filteredFiles.map((file) => (
             <div
               key={file.path}
-              className={`flex flex-col items-center p-3 rounded-md cursor-pointer ${
-                selectedFiles.some(f => f.path === file.path) ? 'bg-blue-100' : 'hover:bg-gray-50'
-              }`}
-              onClick={(e) => toggleFileSelection(file, e.ctrlKey)}
+              className={cn(
+                "flex flex-col items-center py-2 px-1 rounded cursor-pointer hover:bg-gray-100 group",
+                selectedFiles.some(f => f.path === file.path) ? 'bg-blue-100' : ''
+              )}
+              onClick={(e) => toggleFileSelection(file, e.ctrlKey, e.shiftKey)}
               onDoubleClick={() => openFile(file)}
+              onContextMenu={(e) => {
+                // 選択されていない項目を右クリックしたら選択する
+                if (!selectedFiles.some(f => f.path === file.path)) {
+                  toggleFileSelection(file, false, false);
+                }
+              }}
             >
-              <div className="p-2">
-                <FileIcon file={file} size={40} />
+              <div className="relative">
+                <FileIcon file={file} size={48} />
+                {file.is_dir && isPinned(file.path) && (
+                  <Pin size={16} className="absolute top-0 right-0 text-blue-500" />
+                )}
               </div>
-              <div className="text-center text-sm mt-2 w-full">
-                <div className="truncate max-w-full">
-                  {file.name}
-                  {file.is_dir && isPinned(file.path) && (
-                    <Pin size={12} className="text-blue-500 ml-1 inline-block" />
-                  )}
-                </div>
-                {!file.is_dir && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    {file.size_formatted}
-                  </div>
+              <div className="mt-2 text-center">
+                <div className="text-sm truncate max-w-[100px]">{file.name}</div>
+                {file.is_hidden && (
+                  <span className="text-xs text-gray-500 bg-gray-100 px-1 rounded">隠し</span>
                 )}
               </div>
             </div>
