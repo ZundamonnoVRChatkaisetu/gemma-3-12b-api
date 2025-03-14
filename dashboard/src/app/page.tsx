@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, FileText, Copy, Check, Folder } from 'lucide-react'
+import { Send, FileText, Copy, Check, Folder, HelpCircle } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip'
 import EnhancedFileManager from '../components/FileManager/EnhancedFileManager'
 
@@ -34,11 +34,21 @@ export default function ChatInterface() {
   const [isEditingFile, setIsEditingFile] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null)
+  const [showMemoryHelp, setShowMemoryHelp] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // チャット履歴を下までスクロール
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // テキストエリアの高さを内容に合わせて自動調整
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [input]);
 
   // ファイルの内容を読み込む
   async function readFile(path: string) {
@@ -91,6 +101,11 @@ export default function ChatInterface() {
   // ファイルマネージャーを開く
   function handleOpenFileManager() {
     setShowFileManager(prev => !prev)
+  }
+
+  // 記憶機能のヘルプを表示/非表示
+  function toggleMemoryHelp() {
+    setShowMemoryHelp(prev => !prev)
   }
 
   // ファイル選択のハンドラー
@@ -185,8 +200,19 @@ export default function ChatInterface() {
       ])
     } finally {
       setIsLoading(false)
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
     }
   }
+
+  // Enterキーで送信（Shift+Enterで改行）
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as unknown as React.FormEvent);
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
@@ -236,13 +262,22 @@ export default function ChatInterface() {
                 <div className="text-center py-20">
                   <h2 className="text-2xl font-semibold mb-2">Gemma 3 12Bとチャットを始めましょう</h2>
                   <p className="text-gray-600 mb-4">質問や会話を入力してください。</p>
-                  <button 
-                    onClick={handleOpenFileManager}
-                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 mx-auto"
-                  >
-                    <Folder size={18} />
-                    ファイルマネージャーを開く
-                  </button>
+                  <div className="flex justify-center gap-2">
+                    <button 
+                      onClick={handleOpenFileManager}
+                      className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                    >
+                      <Folder size={18} />
+                      ファイルマネージャーを開く
+                    </button>
+                    <button 
+                      onClick={toggleMemoryHelp}
+                      className="bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                    >
+                      <HelpCircle size={18} />
+                      記憶機能のヘルプ
+                    </button>
+                  </div>
                 </div>
               )}
               
@@ -301,48 +336,116 @@ export default function ChatInterface() {
             </div>
             
             <div className="p-2 mt-2">
-              <form onSubmit={handleSubmit} className="flex gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  disabled={isLoading}
-                  placeholder="メッセージを入力..."
-                  className="flex-1 rounded-md border border-gray-300 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={handleOpenFileManager}
-                        className={`${
-                          showFileManager 
-                            ? 'bg-blue-100 text-blue-600' 
-                            : 'bg-gray-100 text-gray-700'
-                        } rounded-md p-2 hover:bg-gray-200 transition-colors`}
-                      >
-                        <Folder size={20} />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>{showFileManager ? 'ファイルマネージャーを閉じる' : 'ファイルマネージャーを開く'}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+              <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={isLoading}
+                    placeholder="メッセージを入力...（Shift+Enterで改行、Enterで送信）"
+                    className="flex-1 rounded-md border border-gray-300 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[40px] max-h-[200px] resize-none"
+                    rows={1}
+                  />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={handleOpenFileManager}
+                          className={`${
+                            showFileManager 
+                              ? 'bg-blue-100 text-blue-600' 
+                              : 'bg-gray-100 text-gray-700'
+                          } rounded-md p-2 hover:bg-gray-200 transition-colors`}
+                        >
+                          <Folder size={20} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>{showFileManager ? 'ファイルマネージャーを閉じる' : 'ファイルマネージャーを開く'}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={toggleMemoryHelp}
+                          className={`${
+                            showMemoryHelp 
+                              ? 'bg-green-100 text-green-600' 
+                              : 'bg-gray-100 text-gray-700'
+                          } rounded-md p-2 hover:bg-gray-200 transition-colors`}
+                        >
+                          <HelpCircle size={20} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>{showMemoryHelp ? '記憶機能のヘルプを閉じる' : '記憶機能のヘルプを開く'}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="submit"
+                          disabled={isLoading || !input.trim()}
+                          className="bg-blue-500 text-white rounded-md p-2 disabled:opacity-50 hover:bg-blue-600 transition-colors"
+                        >
+                          <Send size={20} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>送信</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="submit"
-                        disabled={isLoading || !input.trim()}
-                        className="bg-blue-500 text-white rounded-md p-2 disabled:opacity-50 hover:bg-blue-600 transition-colors"
-                      >
-                        <Send size={20} />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>送信</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                {/* 記憶機能のヘルプ */}
+                {showMemoryHelp && (
+                  <div className="bg-green-50 border border-green-200 rounded-md p-4 mt-2">
+                    <h3 className="text-lg font-medium text-green-800 mb-2">記憶機能の使い方</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="font-medium text-green-700 mb-1">情報を記憶させる</h4>
+                        <div className="bg-white rounded p-2 border border-green-100">
+                          「好きな色は赤を覚えて」<br />
+                          「私の誕生日は6月1日を記憶して」
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-green-700 mb-1">記憶した情報を取得する</h4>
+                        <div className="bg-white rounded p-2 border border-green-100">
+                          「好きな色を思い出して」<br />
+                          「私の誕生日について教えて」
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-green-700 mb-1">記憶した情報を削除する</h4>
+                        <div className="bg-white rounded p-2 border border-green-100">
+                          「好きな色を忘れて」<br />
+                          「私の誕生日を忘れて」
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-green-700 mb-1">記憶している情報の一覧を表示する</h4>
+                        <div className="bg-white rounded p-2 border border-green-100">
+                          「覚えていることを教えて」<br />
+                          「記憶一覧」
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <h4 className="font-medium text-green-700 mb-1">すべての記憶を削除する</h4>
+                        <div className="bg-white rounded p-2 border border-green-100">
+                          「覚えていることすべてを忘れて」<br />
+                          「全ての記憶を消去して」
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-sm text-green-600 mt-2">記憶は次回の会話でも引き継がれ、いつでも参照できます。</p>
+                  </div>
+                )}
               </form>
             </div>
           </div>
