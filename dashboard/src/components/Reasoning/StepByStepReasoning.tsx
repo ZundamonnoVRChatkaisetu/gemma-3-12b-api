@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { RotateCw, CheckIcon } from "lucide-react";
+import { RotateCw, CheckIcon, AlertTriangle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -24,10 +24,12 @@ export function StepByStepReasoning() {
   const [result, setResult] = useState<StepByStepResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [processingTime, setProcessingTime] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
 
     if (!question.trim()) {
       toast({
@@ -42,12 +44,19 @@ export function StepByStepReasoning() {
     setResult(null);
 
     try {
+      console.log("推論リクエスト送信:", {
+        question,
+        context: context || undefined,
+        detail_level: detailLevel,
+      });
+
       const response = await reasoningService.performStepByStepReasoning({
         question,
         context: context || undefined,
         detail_level: detailLevel,
       });
 
+      console.log("推論レスポンス受信:", response);
       setResult(response.result);
       setProcessingTime(response.time_seconds);
       toast({
@@ -56,9 +65,11 @@ export function StepByStepReasoning() {
       });
     } catch (error) {
       console.error("推論エラー:", error);
+      const errorMessage = error instanceof Error ? error.message : "推論の実行中に問題が発生しました。";
+      setError(errorMessage);
       toast({
         title: "エラーが発生しました",
-        description: error instanceof Error ? error.message : "推論の実行中に問題が発生しました。",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -146,6 +157,34 @@ export function StepByStepReasoning() {
           <CardContent className="pt-6">
             <p className="text-center mb-2">推論処理中...</p>
             <Progress value={66} className="h-2" />
+            <p className="text-sm text-center mt-2 text-muted-foreground">
+              APIサーバーに接続しています...
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {error && (
+        <Card className="mt-4 border-red-400">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center text-red-500">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              エラーが発生しました
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md bg-red-50 p-4">
+              <p className="text-red-800">{error}</p>
+              <div className="mt-4">
+                <h4 className="text-sm font-medium text-red-800">対処方法:</h4>
+                <ul className="list-disc pl-5 text-sm text-red-700 mt-2">
+                  <li>APIサーバーが起動していることを確認してください（通常はポート8000で実行）</li>
+                  <li>フロントエンドとAPIサーバー間のCORS設定が正しいことを確認してください</li>
+                  <li>APIエンドポイントのパスが正しいことを確認してください</li>
+                  <li>開発者ツールのネットワークタブでリクエストの詳細を確認してください</li>
+                </ul>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
