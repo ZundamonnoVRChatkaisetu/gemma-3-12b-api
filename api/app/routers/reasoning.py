@@ -11,17 +11,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+class ChatMessage(BaseModel):
+    """チャットメッセージ"""
+    role: str
+    content: str
+
 class StepByStepRequest(BaseModel):
     """ステップバイステップ推論リクエスト"""
     question: str
     context: Optional[str] = None
     detail_level: Optional[str] = "medium"
+    chat_history: Optional[List[ChatMessage]] = None
 
 class EvaluateStatementRequest(BaseModel):
     """文の評価リクエスト"""
     statement: str
     context: Optional[str] = None
     detail_level: Optional[str] = "medium"
+    chat_history: Optional[List[ChatMessage]] = None
 
 class CompareOptionsRequest(BaseModel):
     """選択肢の比較リクエスト"""
@@ -30,6 +37,7 @@ class CompareOptionsRequest(BaseModel):
     criteria: Optional[List[str]] = None
     context: Optional[str] = None
     detail_level: Optional[str] = "medium"
+    chat_history: Optional[List[ChatMessage]] = None
 
 class ReasoningResponse(BaseModel):
     """推論応答"""
@@ -50,6 +58,7 @@ async def step_by_step_reasoning(request: Request, data: StepByStepRequest):
     * question: 質問/問題
     * context: 追加のコンテキスト情報（オプション）
     * detail_level: 推論の詳細レベル（"low", "medium", "high"）
+    * chat_history: 会話履歴（オプション）
     """
     start_time = time.time()
     
@@ -65,7 +74,8 @@ async def step_by_step_reasoning(request: Request, data: StepByStepRequest):
         result = reasoning_engine.perform_step_by_step_reasoning(
             question=data.question,
             context=data.context,
-            detail_level=data.detail_level
+            detail_level=data.detail_level,
+            chat_history=data.chat_history
         )
         
         time_taken = round(time.time() - start_time, 2)
@@ -97,6 +107,7 @@ async def evaluate_statement(request: Request, data: EvaluateStatementRequest):
     * statement: 評価する文
     * context: 追加のコンテキスト情報（オプション）
     * detail_level: 推論の詳細レベル（"low", "medium", "high"）
+    * chat_history: 会話履歴（オプション）
     """
     start_time = time.time()
     
@@ -112,7 +123,8 @@ async def evaluate_statement(request: Request, data: EvaluateStatementRequest):
         result = reasoning_engine.evaluate_statement(
             statement=data.statement,
             context=data.context,
-            detail_level=data.detail_level
+            detail_level=data.detail_level,
+            chat_history=data.chat_history
         )
         
         time_taken = round(time.time() - start_time, 2)
@@ -146,6 +158,7 @@ async def compare_options(request: Request, data: CompareOptionsRequest):
     * criteria: 評価基準（オプション）
     * context: 追加のコンテキスト情報（オプション）
     * detail_level: 推論の詳細レベル（"low", "medium", "high"）
+    * chat_history: 会話履歴（オプション）
     """
     start_time = time.time()
     
@@ -170,7 +183,8 @@ async def compare_options(request: Request, data: CompareOptionsRequest):
             options=data.options,
             criteria=data.criteria,
             context=data.context,
-            detail_level=data.detail_level
+            detail_level=data.detail_level,
+            chat_history=data.chat_history
         )
         
         time_taken = round(time.time() - start_time, 2)
