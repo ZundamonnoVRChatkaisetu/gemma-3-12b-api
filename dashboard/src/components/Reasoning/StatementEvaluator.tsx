@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { reasoningService, DetailLevel, EvaluationResult } from "@/lib/services/reasoning-service";
+import { reasoningService, DetailLevel, EvaluationResult, ChatMessage } from "@/lib/services/reasoning-service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,6 +54,15 @@ export function StatementEvaluator() {
     }
   }, [input]);
 
+  // メッセージ履歴からChatMessage配列に変換
+  const createChatHistory = (): ChatMessage[] => {
+    return messages.map(msg => ({
+      role: msg.type === 'statement' ? 'user' : 'assistant',
+      content: msg.type === 'statement' ? `評価する文: ${msg.content}` : 
+               msg.result ? `評価結果: ${msg.result.is_true === true ? '真' : msg.result.is_true === false ? '偽' : '不明/不確定'} (確信度: ${msg.result.confidence}%)` : msg.content
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -81,12 +90,25 @@ export function StatementEvaluator() {
     setMessages(prev => [...prev, newStatementMessage]);
 
     try {
+      // 過去の会話履歴を作成
+      const chatHistory = createChatHistory();
+
+      console.log("評価リクエスト送信:", {
+        statement: input,
+        context: context || undefined,
+        detail_level: detailLevel,
+        chat_history: chatHistory,
+      });
+
       const response = await reasoningService.evaluateStatement({
         statement: input,
         context: context || undefined,
         detail_level: detailLevel,
+        chat_history: chatHistory,
       });
 
+      console.log("評価レスポンス受信:", response);
+      
       setProcessingTime(response.time_seconds);
       
       // 評価に基づく結果のテキスト
@@ -264,7 +286,7 @@ export function StatementEvaluator() {
               <div className="text-center py-16">
                 <h3 className="text-xl font-medium mb-2">文の真偽評価を始めましょう</h3>
                 <p className="text-muted-foreground mb-4">
-                  下のフォームに評価したい文を入力してください。
+                  下のフォームに評価したい文を入力してください。会話を続けると以前の評価結果を考慮して回答します。
                 </p>
                 <div className="bg-muted p-4 rounded-lg max-w-md mx-auto text-sm">
                   <p className="font-medium mb-2">例えば以下のような文を試してみてください：</p>
