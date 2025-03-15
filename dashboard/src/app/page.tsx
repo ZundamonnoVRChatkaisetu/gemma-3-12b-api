@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, FileText, Copy, Check, Folder, HelpCircle } from 'lucide-react'
+import { Send, FileText, Copy, Check, HelpCircle } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip'
-import EnhancedFileManager from '../components/FileManager/EnhancedFileManager'
 import { MessageContent } from '../components/MessageContent'
 
 interface Message {
@@ -29,7 +28,6 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [showFileManager, setShowFileManager] = useState(false)
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null)
   const [fileContent, setFileContent] = useState('')
   const [isEditingFile, setIsEditingFile] = useState(false)
@@ -97,11 +95,6 @@ export default function ChatInterface() {
       }])
       return null
     }
-  }
-
-  // ファイルマネージャーを開く
-  function handleOpenFileManager() {
-    setShowFileManager(prev => !prev)
   }
 
   // 記憶機能のヘルプを表示/非表示
@@ -187,12 +180,6 @@ export default function ChatInterface() {
       
       // アシスタントの応答をチャットに追加
       setMessages((prev) => [...prev, { role: 'assistant', content: data.message.content }])
-
-      // ファイル操作の指示を検出して実行（より高度な実装ではパース処理を入れる）
-      const lowerCaseMsg = userMessage.toLowerCase()
-      if (lowerCaseMsg.includes('ファイル') || lowerCaseMsg.includes('ディレクトリ')) {
-        handleOpenFileManager()
-      }
     } catch (error) {
       console.error('エラー:', error)
       setMessages((prev) => [
@@ -218,24 +205,10 @@ export default function ChatInterface() {
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* ファイルマネージャー */}
-          {showFileManager && (
-            <div className="md:col-span-1">
-              <EnhancedFileManager 
-                onFileSelect={handleFileSelect}
-                maxHeight="calc(100vh - 150px)"
-                showToolbar={true}
-                initialPath=""
-              />
-            </div>
-          )}
-
+        <div className="max-w-6xl mx-auto grid grid-cols-1 gap-4">
           {/* チャット */}
-          <div className={`${
-            showFileManager ? 'md:col-span-2' : 'md:col-span-3'
-          } flex flex-col h-[calc(100vh-150px)]`}>
-            <div className="flex-1 overflow-auto bg-white p-4 rounded-lg shadow-sm">
+          <div className="flex flex-col h-[calc(100vh-150px)]">
+            <div className="flex-1 overflow-auto bg-background p-4 rounded-lg shadow-sm">
               {/* 全チャットをコピーするボタン */}
               {messages.length > 0 && (
                 <div className="flex justify-end mb-4">
@@ -263,13 +236,6 @@ export default function ChatInterface() {
                   <p className="text-gray-600 mb-4">質問や会話を入力してください。</p>
                   <div className="flex justify-center gap-2">
                     <button 
-                      onClick={handleOpenFileManager}
-                      className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                    >
-                      <Folder size={18} />
-                      ファイルマネージャーを開く
-                    </button>
-                    <button 
                       onClick={toggleMemoryHelp}
                       className="bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
                     >
@@ -293,7 +259,7 @@ export default function ChatInterface() {
                       className={`rounded-lg px-4 py-3 max-w-[80%] relative group ${
                         message.role === 'user'
                           ? 'bg-blue-500 text-white'
-                          : 'bg-white border border-gray-200'
+                          : 'bg-card border border-gray-200'
                       }`}
                     >
                       {/* MessageContentコンポーネントを使用してコードブロックを検出・表示 */}
@@ -322,7 +288,7 @@ export default function ChatInterface() {
                 ))}
                 {isLoading && (
                   <div className="flex justify-start">
-                    <div className="rounded-lg px-4 py-2 bg-white border border-gray-200">
+                    <div className="rounded-lg px-4 py-2 bg-card border border-gray-200">
                       <div className="flex items-center">
                         <div className="animate-pulse flex space-x-1">
                           <div className="h-2 w-2 rounded-full bg-gray-400"></div>
@@ -351,24 +317,6 @@ export default function ChatInterface() {
                     className="flex-1 rounded-md border border-gray-300 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[40px] max-h-[200px] resize-none"
                     rows={1}
                   />
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={handleOpenFileManager}
-                          className={`${
-                            showFileManager 
-                              ? 'bg-blue-100 text-blue-600' 
-                              : 'bg-gray-100 text-gray-700'
-                          } rounded-md p-2 hover:bg-gray-200 transition-colors`}
-                        >
-                          <Folder size={20} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>{showFileManager ? 'ファイルマネージャーを閉じる' : 'ファイルマネージャーを開く'}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
                   
                   <TooltipProvider>
                     <Tooltip>
