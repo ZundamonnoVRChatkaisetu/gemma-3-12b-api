@@ -2,6 +2,7 @@ import './globals.css'
 import type { Metadata } from 'next'
 import { Toaster } from '../components/ui/toaster'
 import { Header } from '@/components/Navigation/Header'
+import { Sidebar } from '@/components/Navigation/Sidebar'
 import { ThemeProvider } from '@/components/theme/theme-provider'
 
 export const metadata: Metadata = {
@@ -23,12 +24,23 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className="relative flex min-h-screen flex-col">
-            <Header />
-            <main className="flex-1">
-              {children}
-            </main>
+          <div className="flex min-h-screen">
+            {/* サイドバーナビゲーション */}
+            <div className="hidden md:block">
+              <Sidebar />
+            </div>
+            
+            {/* メインコンテンツエリア */}
+            <div className="flex flex-col flex-1">
+              <Header />
+              <main className="flex-1 overflow-auto">
+                <div className="container mx-auto py-4 md:py-6 px-4 md:px-6">
+                  {children}
+                </div>
+              </main>
+            </div>
           </div>
+          
           <Toaster />
         </ThemeProvider>
       </body>
