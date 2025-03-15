@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { reasoningService, DetailLevel, StepByStepResult } from "@/lib/services/reasoning-service";
+import { reasoningService, DetailLevel, StepByStepResult, ChatMessage } from "@/lib/services/reasoning-service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,6 +53,15 @@ export function StepByStepReasoning() {
     }
   }, [input]);
 
+  // メッセージ履歴からChatMessage配列に変換
+  const createChatHistory = (): ChatMessage[] => {
+    return messages.map(msg => ({
+      role: msg.type === 'question' ? 'user' : 'assistant',
+      content: msg.type === 'question' ? msg.content : 
+               msg.result ? `最終回答: ${msg.result.answer}` : msg.content
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -81,16 +90,21 @@ export function StepByStepReasoning() {
     setMessages(prev => [...prev, newQuestionMessage]);
 
     try {
+      // 過去の会話履歴を作成
+      const chatHistory = createChatHistory();
+
       console.log("推論リクエスト送信:", {
         question: input,
         context: context || undefined,
         detail_level: detailLevel,
+        chat_history: chatHistory,
       });
 
       const response = await reasoningService.performStepByStepReasoning({
         question: input,
         context: context || undefined,
         detail_level: detailLevel,
+        chat_history: chatHistory,
       });
 
       console.log("推論レスポンス受信:", response);
@@ -231,7 +245,7 @@ export function StepByStepReasoning() {
               <div className="text-center py-16">
                 <h3 className="text-xl font-medium mb-2">ステップバイステップ推論を始めましょう</h3>
                 <p className="text-muted-foreground mb-4">
-                  下のフォームに質問や問題を入力して、論理的な思考プロセスを確認できます。
+                  下のフォームに質問や問題を入力して、論理的な思考プロセスを確認できます。会話を続けると推論エンジンは以前の会話内容を記憶して回答します。
                 </p>
                 <div className="bg-muted p-4 rounded-lg max-w-md mx-auto text-sm">
                   <p className="font-medium mb-2">例えば以下のような質問を試してみてください：</p>
