@@ -62,14 +62,22 @@ class ReasoningEngine:
         }.get(detail_level, 5)
         
         # 推論プロンプトの構築
-        system_prompt = f"""あなたは論理的な推論を行う専門家です。指定された問題について、ステップバイステップで思考プロセスを示してください。
-        
+        system_prompt = f"""あなたは高度な論理的推論を行う専門家です。指定された問題について、ステップバイステップで詳細かつ正確な思考プロセスを示してください。
+
 この分析では以下のガイドラインに従ってください：
 
-1. 問題を慎重に理解し、重要な要素を特定してください。
-2. 最大{max_steps}ステップで論理的思考プロセスを明示してください。
-3. 各ステップを明確に区別し、「ステップ1:」「ステップ2:」などと番号付けしてください。
-4. 最後に最終的な回答と、その確信度（0-100%）を提供してください。
+1. まず問題を慎重に理解し、重要な要素を特定し、解決に必要な情報を明確にしてください。
+2. 問題を解決するための論理的アプローチと方法論を選択してください。
+3. 最大{max_steps}ステップで論理的思考プロセスを明示し、各ステップで推論を前進させてください。
+4. 各ステップを明確に区別し、「ステップ1:」「ステップ2:」などと番号付けしてください。
+5. 数学的/論理的問題の場合は、具体的な計算や論理式も示してください。
+6. 最後に最終的な回答と、その確信度（0-100%）を提供してください。
+7. 確信度の評価では以下の基準を使用してください：
+   - 90-100%: 答えが明確で議論の余地がほとんどない
+   - 75-89%: 強い確信があるが小さな不確実性が存在する
+   - 60-74%: 中程度の確信、複数の解釈の可能性がある
+   - 40-59%: 不確実性が高い
+   - 0-39%: 推測に基づく回答
 
 出力は以下のJSON形式で行ってください：
 {{
@@ -83,7 +91,9 @@ class ReasoningEngine:
   "reasoning_quality": "high/medium/low"
 }}
 
+推論の品質はステップの論理性、包括性、適切性に基づいて評価してください。
 詳細レベル: {detail_level}
+現在の日付: {settings.CURRENT_DATE if hasattr(settings, 'CURRENT_DATE') else "不明"}
 """
 
         # コンテキスト情報を含める場合
@@ -106,8 +116,8 @@ class ReasoningEngine:
                 return {
                     "steps": ["ステップ1: 問題分析", "ステップ2: 回答導出"],
                     "answer": response,
-                    "confidence": 50,
-                    "reasoning_quality": "low"
+                    "confidence": 75,
+                    "reasoning_quality": "medium"
                 }
                 
             json_str = json_match.group(0)
@@ -121,7 +131,11 @@ class ReasoningEngine:
             if "confidence" in result:
                 result["confidence"] = max(0, min(100, result["confidence"]))
             else:
-                result["confidence"] = 50  # デフォルト値
+                result["confidence"] = 75  # デフォルト値を75%に引き上げ
+                
+            # 推論品質の確認と設定
+            if "reasoning_quality" not in result or result["reasoning_quality"] not in ["low", "medium", "high"]:
+                result["reasoning_quality"] = "medium"  # デフォルト値を"medium"に設定
                 
             return result
             
@@ -156,20 +170,27 @@ class ReasoningEngine:
         
         # 詳細レベルに応じた根拠の数を設定
         evidence_count = {
-            "low": 1,
-            "medium": 2,
-            "high": 4
-        }.get(detail_level, 2)
+            "low": 2,
+            "medium": 3,
+            "high": 5
+        }.get(detail_level, 3)
         
         # 評価プロンプトの構築
-        system_prompt = f"""あなたは文の真偽を評価する専門家です。以下の文が真であるか偽であるかを判断し、その確信度と根拠を示してください。
+        system_prompt = f"""あなたは文の真偽を厳密に評価する専門家です。以下の文が真であるか偽であるかを慎重に判断し、その確信度と詳細な根拠を示してください。
 
 評価では以下のガイドラインに従ってください：
 
-1. 文を慎重に分析し、その真偽を判断してください。
-2. 判断に至った根拠を{evidence_count}つ以上提示してください。
-3. 確信度を0%（完全に偽）から100%（完全に真）のスケールで評価してください。
-4. 判断に不確実性がある場合はそれを明示してください。
+1. 文を慎重に分析し、含まれる主張を明確に特定してください。
+2. 文の各部分について事実関係を検証し、主張全体の真偽を判断してください。
+3. 判断に至った根拠を{evidence_count}つ以上提示し、各根拠が主張のどの部分を支持または反証するかを明確にしてください。
+4. 確信度を0%（完全に偽）から100%（完全に真）のスケールで評価し、以下の基準を参考にしてください：
+   - 90-100%: 主張が明確に真実で、信頼できる情報源で広く確認されている
+   - 75-89%: おそらく真実だが、小さな不正確さや例外がある可能性がある
+   - 60-74%: 部分的に真実だが、重要な限定や例外がある
+   - 40-59%: 真偽が混在し、確定的な判断が難しい
+   - 25-39%: おそらく偽だが、部分的に正確な要素を含む
+   - 0-24%: 主張が明確に偽である
+5. 判断に不確実性がある場合は、その具体的な内容と理由を明示してください。
 
 出力は以下のJSON形式で行ってください：
 {{
@@ -185,6 +206,7 @@ class ReasoningEngine:
 }}
 
 詳細レベル: {detail_level}
+現在の日付: {settings.CURRENT_DATE if hasattr(settings, 'CURRENT_DATE') else "不明"}
 """
 
         # コンテキスト情報を含める場合
@@ -206,7 +228,7 @@ class ReasoningEngine:
                 # フォールバック: シンプルな回答を構造化
                 return {
                     "is_true": None,
-                    "confidence": 50,
+                    "confidence": 75,
                     "evidence": ["評価結果をJSONとして解析できませんでした"],
                     "uncertainties": ["解析エラー"],
                     "conclusion": response
@@ -218,6 +240,8 @@ class ReasoningEngine:
             # 確信度の正規化
             if "confidence" in result:
                 result["confidence"] = max(0, min(100, result["confidence"]))
+            else:
+                result["confidence"] = 75  # デフォルト値を75%に引き上げ
                 
             return result
             
@@ -262,6 +286,13 @@ class ReasoningEngine:
             "high": "詳細"
         }.get(detail_level, "標準")
         
+        # 各詳細レベルごとの評価ポイント数
+        eval_points = {
+            "low": 2,
+            "medium": 3,
+            "high": 5
+        }.get(detail_level, 3)
+        
         # 選択肢のフォーマット
         options_text = "\n".join([f"{i+1}. {option}" for i, option in enumerate(options)])
         
@@ -271,32 +302,35 @@ class ReasoningEngine:
             criteria_text = "評価基準:\n" + "\n".join([f"- {criterion}" for criterion in criteria])
         
         # 比較プロンプトの構築
-        system_prompt = f"""あなたは選択肢を比較して最適な選択をする専門家です。以下の質問に対して、与えられた選択肢を比較し、最適なものを選んでください。
+        system_prompt = f"""あなたは複数の選択肢を論理的に比較して最適な選択をする専門家です。以下の質問に対して、与えられた選択肢を慎重に比較分析し、最適なものを選んでください。
 
 比較では以下のガイドラインに従ってください：
 
-1. 各選択肢を{evaluation_detail}に評価してください。
-2. 質問の文脈を考慮して選択肢を比較してください。
-3. 各選択肢の長所と短所を分析してください。
-4. 最終的に最適な選択肢を選び、その理由を説明してください。
+1. 各選択肢を{evaluation_detail}に評価し、それぞれ少なくとも{eval_points}つの評価ポイントを挙げてください。
+2. 質問の文脈を考慮して選択肢を比較し、どの選択基準が最も重要かを考慮してください。
+3. 各選択肢の長所と短所を具体的に分析し、各選択肢に0-100のスコアを割り当ててください。
+4. スコアの根拠を明確に説明してください。
+5. 最終的に最適な選択肢を選び、その選択の根拠と理由を詳細に説明してください。
+6. オプション間の相対的な優劣を明確にするためにランキングを作成してください。
 
 出力は以下のJSON形式で行ってください：
 {{
   "evaluations": [
     {{
       "option": "選択肢1",
-      "pros": ["長所1", "長所2"],
-      "cons": ["短所1", "短所2"],
+      "pros": ["長所1", "長所2", ...],
+      "cons": ["短所1", "短所2", ...],
       "score": 85
     }},
     ...
   ],
   "ranking": ["選択肢2", "選択肢1", "選択肢3"],
   "best_option": "選択肢2",
-  "reasoning": "最適な選択肢を選んだ理由"
+  "reasoning": "最適な選択肢を選んだ理由の詳細な説明"
 }}
 
 詳細レベル: {detail_level}
+現在の日付: {settings.CURRENT_DATE if hasattr(settings, 'CURRENT_DATE') else "不明"}
 """
 
         # ユーザープロンプトの構築
@@ -319,7 +353,12 @@ class ReasoningEngine:
                 logger.warning(f"JSONレスポンスが見つかりませんでした: {response}")
                 # フォールバック: シンプルな回答を構造化
                 return {
-                    "evaluations": [{"option": option, "pros": [], "cons": [], "score": 50} for option in options],
+                    "evaluations": [{
+                        "option": option, 
+                        "pros": ["十分な情報がありません"], 
+                        "cons": ["十分な情報がありません"], 
+                        "score": 75
+                    } for option in options],
                     "ranking": options,
                     "best_option": options[0] if options else None,
                     "reasoning": response
@@ -449,13 +488,27 @@ class ReasoningEngine:
             steps = result.get("steps", [])
             answer = result.get("answer", "回答が生成できませんでした")
             confidence = result.get("confidence", 0)
+            quality = result.get("reasoning_quality", "medium")
+            
+            # 確信度の言語的表現
+            confidence_text = {
+                (90, 100): "非常に高い",
+                (75, 89): "高い",
+                (60, 74): "中程度",
+                (40, 59): "不確か",
+                (0, 39): "低い"
+            }
+            
+            confidence_description = next((desc for (min_val, max_val), desc in confidence_text.items() 
+                                          if min_val <= confidence <= max_val), "不明")
             
             formatted = "## ステップバイステップ推論\n\n"
             for step in steps:
                 formatted += f"{step}\n\n"
             
             formatted += f"## 最終回答\n\n{answer}\n\n"
-            formatted += f"**確信度**: {confidence}%"
+            formatted += f"**確信度**: {confidence}% ({confidence_description})\n"
+            formatted += f"**推論品質**: {quality}"
             
             return formatted
             
