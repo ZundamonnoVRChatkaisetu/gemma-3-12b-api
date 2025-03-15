@@ -2,16 +2,23 @@ import { API_BASE_URL } from "@/components/FileManager/types";
 
 export type DetailLevel = 'low' | 'medium' | 'high';
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface StepByStepReasoningRequest {
   question: string;
   context?: string;
   detail_level?: DetailLevel;
+  chat_history?: ChatMessage[];
 }
 
 export interface EvaluateStatementRequest {
   statement: string;
   context?: string;
   detail_level?: DetailLevel;
+  chat_history?: ChatMessage[];
 }
 
 export interface CompareOptionsRequest {
@@ -20,6 +27,7 @@ export interface CompareOptionsRequest {
   criteria?: string[];
   context?: string;
   detail_level?: DetailLevel;
+  chat_history?: ChatMessage[];
 }
 
 export interface StepByStepResult {
@@ -72,6 +80,8 @@ class ReasoningService {
   ): Promise<ReasoningResponse<StepByStepResult>> {
     try {
       console.log(`APIリクエスト: ${this.baseUrl}/reasoning/step-by-step`);
+      console.log('リクエスト内容:', request);
+      
       const response = await fetch(`${this.baseUrl}/reasoning/step-by-step`, {
         method: 'POST',
         headers: {
@@ -111,6 +121,8 @@ class ReasoningService {
   ): Promise<ReasoningResponse<EvaluationResult>> {
     try {
       console.log(`APIリクエスト: ${this.baseUrl}/reasoning/evaluate-statement`);
+      console.log('リクエスト内容:', request);
+      
       const response = await fetch(`${this.baseUrl}/reasoning/evaluate-statement`, {
         method: 'POST',
         headers: {
@@ -150,6 +162,8 @@ class ReasoningService {
   ): Promise<ReasoningResponse<ComparisonResult>> {
     try {
       console.log(`APIリクエスト: ${this.baseUrl}/reasoning/compare-options`);
+      console.log('リクエスト内容:', request);
+      
       const response = await fetch(`${this.baseUrl}/reasoning/compare-options`, {
         method: 'POST',
         headers: {
