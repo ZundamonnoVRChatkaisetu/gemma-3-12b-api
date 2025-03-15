@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { reasoningService, DetailLevel, ComparisonResult } from "@/lib/services/reasoning-service";
+import { reasoningService, DetailLevel, ComparisonResult, ChatMessage } from "@/lib/services/reasoning-service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -60,6 +60,31 @@ export function OptionsComparison() {
     }
   }, [input]);
 
+  // メッセージ履歴からChatMessage配列に変換
+  const createChatHistory = (): ChatMessage[] => {
+    return messages.map(msg => {
+      if (msg.type === 'question') {
+        const optionsText = msg.options && msg.options.length > 0 
+          ? `\n選択肢:\n${msg.options.map((opt, i) => `${i+1}. ${opt}`).join('\n')}` 
+          : '';
+        const criteriaText = msg.criteria && msg.criteria.length > 0 
+          ? `\n評価基準:\n${msg.criteria.map(c => `- ${c}`).join('\n')}` 
+          : '';
+        return {
+          role: 'user',
+          content: `${msg.content}${optionsText}${criteriaText}`
+        };
+      } else {
+        return {
+          role: 'assistant',
+          content: msg.result 
+            ? `最適な選択肢: ${msg.result.best_option}` 
+            : msg.content
+        };
+      }
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -96,7 +121,7 @@ export function OptionsComparison() {
     const newQuestionMessage: Message = {
       id: Date.now().toString(),
       type: 'question',
-      content: questionContent,
+      content: input,
       context: context || undefined,
       options: validOptions,
       criteria: criteria.length > 0 ? criteria : undefined,
@@ -107,13 +132,28 @@ export function OptionsComparison() {
     setMessages(prev => [...prev, newQuestionMessage]);
 
     try {
+      // 過去の会話履歴を作成
+      const chatHistory = createChatHistory();
+
+      console.log("比較リクエスト送信:", {
+        question: input,
+        options: validOptions,
+        criteria: criteria.length > 0 ? criteria : undefined,
+        context: context || undefined,
+        detail_level: detailLevel,
+        chat_history: chatHistory,
+      });
+
       const response = await reasoningService.compareOptions({
         question: input,
         options: validOptions,
         criteria: criteria.length > 0 ? criteria : undefined,
         context: context || undefined,
         detail_level: detailLevel,
+        chat_history: chatHistory,
       });
+
+      console.log("比較レスポンス受信:", response);
 
       setProcessingTime(response.time_seconds);
       
@@ -371,7 +411,7 @@ export function OptionsComparison() {
               <div className="text-center py-16">
                 <h3 className="text-xl font-medium mb-2">選択肢の比較を始めましょう</h3>
                 <p className="text-muted-foreground mb-4">
-                  上のフォームに選択肢と比較したい質問を入力してください。
+                  上のフォームに選択肢と比較したい質問を入力してください。会話を続けると以前の比較結果を考慮します。
                 </p>
                 <div className="bg-muted p-4 rounded-lg max-w-md mx-auto text-sm">
                   <p className="font-medium mb-2">例えば以下のような質問を試してみてください：</p>
@@ -405,6 +445,28 @@ export function OptionsComparison() {
                       content={message.content} 
                       isUser={message.type === 'question'} 
                     />
+                    
+                    {/* 選択肢の表示（質問メッセージの場合のみ） */}
+                    {message.type === 'question' && message.options && message.options.length > 0 && (
+                      <div className="mt-2">
+                        <p className="font-medium">選択肢:</p>
+                        <ul className="list-disc pl-5">
+                          {message.options.map((option, idx) => (
+                            <li key={idx}>{option}</li>
+                          ))}
+                        </ul>
+                        {message.criteria && message.criteria.length > 0 && (
+                          <div className="mt-2">
+                            <p className="font-medium">評価基準:</p>
+                            <ul className="list-disc pl-5">
+                              {message.criteria.map((criterion, idx) => (
+                                <li key={idx}>{criterion}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     
                     {/* 比較結果の詳細表示（応答メッセージの場合のみ） */}
                     {message.type === 'response' && message.result && (
