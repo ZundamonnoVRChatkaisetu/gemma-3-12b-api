@@ -5,12 +5,22 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * ツールチッププロバイダーコンポーネント
+ * ツールチップの表示設定を管理します
+ */
 const TooltipProvider = TooltipPrimitive.Provider
 
-const Tooltip = TooltipPrimitive.Root
-
+/**
+ * ツールチップトリガーコンポーネント
+ * ホバー時にツールチップを表示するトリガー要素として機能します
+ */
 const TooltipTrigger = TooltipPrimitive.Trigger
 
+/**
+ * ツールチップコンテンツコンポーネント
+ * ツールチップとして表示されるコンテンツを提供します
+ */
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
@@ -26,5 +36,11 @@ const TooltipContent = React.forwardRef<
   />
 ))
 TooltipContent.displayName = TooltipPrimitive.Content.displayName
+
+/**
+ * ツールチップコンポーネント
+ * 簡易的なヘルプテキストやヒントを表示するために使用します
+ */
+const Tooltip = TooltipPrimitive.Root
 
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
