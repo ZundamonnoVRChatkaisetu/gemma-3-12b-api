@@ -1,6 +1,5 @@
 "use client"
 
-import { useToast } from "../../components/ui/use-toast"
 import {
   Toast,
   ToastClose,
@@ -8,8 +7,13 @@ import {
   ToastProvider,
   ToastTitle,
   ToastViewport,
-} from "../../components/ui/toast"
+} from "@/components/ui/toast"
+import { useToast } from "@/components/ui/use-toast"
 
+/**
+ * トースト通知の表示コンポーネント
+ * アプリケーション全体でトースト通知を表示するために使用
+ */
 export function Toaster() {
   const { toasts } = useToast()
 
