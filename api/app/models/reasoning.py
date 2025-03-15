@@ -33,6 +33,36 @@ class ReasoningEngine:
         self.chat_model = get_chat_model()
         logger.info("ReasoningEngine: 初期化完了")
     
+    def clean_json_string(self, json_str: str) -> str:
+        """
+        JSON文字列をクリーンアップして解析可能にする
+        
+        Args:
+            json_str: 元のJSON文字列
+            
+        Returns:
+            str: クリーンアップされたJSON文字列
+        """
+        # 先頭と末尾の余分なテキストを削除
+        json_match = re.search(r'(\{.*\})', json_str, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        
+        # シングルクォートをダブルクォートに置換
+        json_str = json_str.replace("'", '"')
+        
+        # プロパティ名をダブルクォーテーションで囲む
+        # カンマと空白の後にある単語+コロンの形式を探し、そのプロパティ名をダブルクォーテーションで囲む
+        json_str = re.sub(r'([,{\s])(\w+)(\s*:)', r'\1"\2"\3', json_str)
+        
+        # 最後の}の直前にカンマがある場合は削除（JSON形式では許可されていない）
+        json_str = re.sub(r',\s*}', '}', json_str)
+        
+        # フロート値が末尾に不正なカンマを持っていることがある
+        json_str = re.sub(r'(\d+),(\s*[,}])', r'\1\2', json_str)
+        
+        return json_str
+
     def perform_step_by_step_reasoning(self, 
                                        question: str, 
                                        context: Optional[str] = None,
@@ -79,7 +109,7 @@ class ReasoningEngine:
    - 40-59%: 不確実性が高い
    - 0-39%: 推測に基づく回答
 
-出力は以下のJSON形式で行ってください：
+必ず以下のJSON形式で出力してください。すべてのプロパティ名はダブルクォーテーション（"）で囲んでください：
 {{
   "steps": [
     "ステップ1: ...",
@@ -107,7 +137,7 @@ class ReasoningEngine:
             Message(role="user", content=user_prompt)
         ])
         
-        # JSONレスポンスの抽出
+        # JSONレスポンスの抽出と解析
         try:
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if not json_match:
@@ -121,7 +151,28 @@ class ReasoningEngine:
                 }
                 
             json_str = json_match.group(0)
-            result = json.loads(json_str)
+            
+            # JSON文字列をクリーンアップして解析可能にする
+            cleaned_json = self.clean_json_string(json_str)
+            
+            try:
+                result = json.loads(cleaned_json)
+            except json.JSONDecodeError as e:
+                logger.error(f"クリーンアップ後もJSONのパースに失敗しました: {str(e)}")
+                logger.debug(f"クリーンアップしたJSON: {cleaned_json}")
+                
+                # エラー箇所の周辺を特定して詳細なログを残す
+                error_pos = e.pos
+                error_context = cleaned_json[max(0, error_pos - 20):min(len(cleaned_json), error_pos + 20)]
+                logger.debug(f"エラー周辺のコンテキスト: 「{error_context}」")
+                
+                # フォールバック応答
+                return {
+                    "steps": ["ステップ1: 問題分析（JSONパース失敗）"],
+                    "answer": "推論結果の処理中にエラーが発生しました。モデルの出力を直接表示します:\n\n" + response[:1000] + ("..." if len(response) > 1000 else ""),
+                    "confidence": 75,  # フォールバック確信度
+                    "reasoning_quality": "medium"
+                }
             
             # 結果の検証と整形
             if "steps" not in result or "answer" not in result:
@@ -192,7 +243,7 @@ class ReasoningEngine:
    - 0-24%: 主張が明確に偽である
 5. 判断に不確実性がある場合は、その具体的な内容と理由を明示してください。
 
-出力は以下のJSON形式で行ってください：
+必ず以下のJSON形式で出力してください。すべてのプロパティ名はダブルクォーテーション（"）で囲んでください：
 {{
   "is_true": true/false,
   "confidence": 75,
@@ -235,7 +286,24 @@ class ReasoningEngine:
                 }
                 
             json_str = json_match.group(0)
-            result = json.loads(json_str)
+            
+            # JSON文字列をクリーンアップして解析可能にする
+            cleaned_json = self.clean_json_string(json_str)
+            
+            try:
+                result = json.loads(cleaned_json)
+            except json.JSONDecodeError as e:
+                logger.error(f"クリーンアップ後もJSONのパースに失敗しました: {str(e)}")
+                logger.debug(f"クリーンアップしたJSON: {cleaned_json}")
+                
+                # フォールバック応答
+                return {
+                    "is_true": None,
+                    "confidence": 75,
+                    "evidence": ["JSONパース失敗"],
+                    "uncertainties": ["解析エラー"],
+                    "conclusion": response[:1000] + ("..." if len(response) > 1000 else "")
+                }
             
             # 確信度の正規化
             if "confidence" in result:
@@ -313,7 +381,7 @@ class ReasoningEngine:
 5. 最終的に最適な選択肢を選び、その選択の根拠と理由を詳細に説明してください。
 6. オプション間の相対的な優劣を明確にするためにランキングを作成してください。
 
-出力は以下のJSON形式で行ってください：
+必ず以下のJSON形式で出力してください。すべてのプロパティ名はダブルクォーテーション（"）で囲んでください：
 {{
   "evaluations": [
     {{
@@ -365,7 +433,28 @@ class ReasoningEngine:
                 }
                 
             json_str = json_match.group(0)
-            result = json.loads(json_str)
+            
+            # JSON文字列をクリーンアップして解析可能にする
+            cleaned_json = self.clean_json_string(json_str)
+            
+            try:
+                result = json.loads(cleaned_json)
+            except json.JSONDecodeError as e:
+                logger.error(f"クリーンアップ後もJSONのパースに失敗しました: {str(e)}")
+                logger.debug(f"クリーンアップしたJSON: {cleaned_json}")
+                
+                # フォールバック応答
+                return {
+                    "evaluations": [{
+                        "option": option, 
+                        "pros": ["JSONパース失敗"], 
+                        "cons": ["JSONパース失敗"], 
+                        "score": 75
+                    } for option in options],
+                    "ranking": options,
+                    "best_option": options[0] if options else None,
+                    "reasoning": response[:1000] + ("..." if len(response) > 1000 else "")
+                }
             
             return result
             
@@ -423,7 +512,7 @@ class ReasoningEngine:
 4. オプションの比較や評価を求める表現
 5. 文の真偽の評価を求める表現
 
-出力はJSON形式で:
+必ず以下のJSON形式で出力してください。すべてのプロパティ名はダブルクォーテーション（"）で囲んでください：
 {{
   "is_reasoning_intent": true/false,
   "reasoning_type": "step_by_step/evaluate_statement/compare_options",
@@ -451,7 +540,14 @@ class ReasoningEngine:
         json_str = json_match.group(0)
         
         try:
-            result = json.loads(json_str)
+            # JSON文字列をクリーンアップして解析可能にする
+            cleaned_json = self.clean_json_string(json_str)
+            
+            try:
+                result = json.loads(cleaned_json)
+            except json.JSONDecodeError as e:
+                logger.error(f"クリーンアップ後もJSONのパースに失敗しました: {str(e)}")
+                return False, "", {}
             
             # 結果を整形
             is_reasoning_intent = result.get("is_reasoning_intent", False)
