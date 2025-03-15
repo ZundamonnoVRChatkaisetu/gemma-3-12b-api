@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { MessageSquare, LightbulbIcon, FolderIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ModeToggle } from "../theme/mode-toggle"
+import { ModeToggle } from "@/components/theme/mode-toggle"
 
 export function MainNav() {
   const pathname = usePathname()
