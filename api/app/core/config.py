@@ -2,6 +2,7 @@ import os
 from typing import List, Optional, Union, Dict, Any
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from datetime import datetime
 
 class Settings(BaseSettings):
     # プロジェクト設定
@@ -31,11 +32,14 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL_NAME: str = "gemma3:12b"
     
+    # 現在の日付 (推論などに使用)
+    CURRENT_DATE: str = datetime.now().strftime("%Y年%m月%d日")
+    
     # 推論設定
     MAX_NEW_TOKENS: int = 2048
-    DEFAULT_TEMPERATURE: float = 0.7
-    DEFAULT_TOP_P: float = 0.9
-    DEFAULT_TOP_K: int = 50
+    DEFAULT_TEMPERATURE: float = 0.3  # 0.7から0.3に変更（より決定論的な応答を生成）
+    DEFAULT_TOP_P: float = 0.95       # 0.9から0.95に変更（より高品質なトークン選択）
+    DEFAULT_TOP_K: int = 40           # 50から40に変更（より高品質な次トークン候補を選択）
     DEVICE: str = "cuda"  # "cuda" または "cpu"
     
     # レート制限
