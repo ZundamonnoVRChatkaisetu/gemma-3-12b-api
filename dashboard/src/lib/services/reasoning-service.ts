@@ -59,9 +59,12 @@ class ReasoningService {
 
   constructor() {
     // APIのベースURLを設定
+    // 問題解決のために修正: 明示的にAPIベースURLを設定し、エンドポイントパスを正確に指定
     this.baseUrl = typeof window !== 'undefined' 
-      ? `${window.location.origin}/api/v1/reasoning`
-      : `${API_BASE_URL}/api/v1/reasoning`;
+      ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
+      : `${API_BASE_URL}/api/v1`;
+    
+    console.log("Reasoning API baseUrl:", this.baseUrl);
   }
 
   /**
@@ -71,7 +74,8 @@ class ReasoningService {
     request: StepByStepReasoningRequest
   ): Promise<ReasoningResponse<StepByStepResult>> {
     try {
-      const response = await fetch(`${this.baseUrl}/step-by-step`, {
+      console.log(`APIリクエスト: ${this.baseUrl}/reasoning/step-by-step`);
+      const response = await fetch(`${this.baseUrl}/reasoning/step-by-step`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -80,10 +84,17 @@ class ReasoningService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.detail || `エラーが発生しました: ${response.status}`
-        );
+        let errorMessage = `エラーが発生しました: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch (parseError) {
+          // JSONとして解析できない場合はテキストを取得
+          const errorText = await response.text();
+          console.error('エラーレスポンスのテキスト:', errorText);
+          errorMessage = `APIエラー: ${response.status} - レスポンスの解析に失敗しました`;
+        }
+        throw new Error(errorMessage);
       }
 
       return await response.json();
@@ -100,7 +111,8 @@ class ReasoningService {
     request: EvaluateStatementRequest
   ): Promise<ReasoningResponse<EvaluationResult>> {
     try {
-      const response = await fetch(`${this.baseUrl}/evaluate-statement`, {
+      console.log(`APIリクエスト: ${this.baseUrl}/reasoning/evaluate-statement`);
+      const response = await fetch(`${this.baseUrl}/reasoning/evaluate-statement`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,10 +121,17 @@ class ReasoningService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.detail || `エラーが発生しました: ${response.status}`
-        );
+        let errorMessage = `エラーが発生しました: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch (parseError) {
+          // JSONとして解析できない場合はテキストを取得
+          const errorText = await response.text();
+          console.error('エラーレスポンスのテキスト:', errorText);
+          errorMessage = `APIエラー: ${response.status} - レスポンスの解析に失敗しました`;
+        }
+        throw new Error(errorMessage);
       }
 
       return await response.json();
@@ -129,7 +148,8 @@ class ReasoningService {
     request: CompareOptionsRequest
   ): Promise<ReasoningResponse<ComparisonResult>> {
     try {
-      const response = await fetch(`${this.baseUrl}/compare-options`, {
+      console.log(`APIリクエスト: ${this.baseUrl}/reasoning/compare-options`);
+      const response = await fetch(`${this.baseUrl}/reasoning/compare-options`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,10 +158,17 @@ class ReasoningService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.detail || `エラーが発生しました: ${response.status}`
-        );
+        let errorMessage = `エラーが発生しました: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch (parseError) {
+          // JSONとして解析できない場合はテキストを取得
+          const errorText = await response.text();
+          console.error('エラーレスポンスのテキスト:', errorText);
+          errorMessage = `APIエラー: ${response.status} - レスポンスの解析に失敗しました`;
+        }
+        throw new Error(errorMessage);
       }
 
       return await response.json();
