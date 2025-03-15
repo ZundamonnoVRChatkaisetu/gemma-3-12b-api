@@ -315,7 +315,7 @@ export default function ProjectChatPage() {
                         className={`rounded-lg px-4 py-3 max-w-[80%] relative group ${
                           message.role === 'user'
                             ? 'bg-blue-500 text-white'
-                            : 'bg-card border border-gray-200'
+                            : 'bg-card border border-gray-200 text-card-foreground'
                         }`}
                       >
                         {/* MessageContentコンポーネントを使用してコードブロックを検出・表示 */}
@@ -347,7 +347,7 @@ export default function ProjectChatPage() {
               
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="rounded-lg px-4 py-2 bg-card border border-gray-200">
+                  <div className="rounded-lg px-4 py-2 bg-card border border-gray-200 text-card-foreground">
                     <div className="flex items-center">
                       <div className="animate-pulse flex space-x-1">
                         <div className="h-2 w-2 rounded-full bg-gray-400"></div>
