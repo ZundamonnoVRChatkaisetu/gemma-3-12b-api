@@ -165,10 +165,10 @@ const EnhancedFileManager: React.FC<EnhancedFileManagerProps> = ({
     >
       <div 
         ref={fileManagerRef}
-        className={`${isFullscreen ? 'fixed inset-0 z-50 bg-white' : ''} ${className} select-none`}
+        className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background' : ''} ${className} select-none`}
         style={{ maxHeight: isFullscreen ? '100vh' : maxHeight }}
       >
-        <div className="w-full h-full flex flex-col border rounded-md overflow-hidden shadow-sm">
+        <div className="w-full h-full flex flex-col border rounded-md overflow-hidden shadow-sm bg-background text-foreground">
           {/* Explorer風ヘッダー・ツールバー */}
           {showToolbar && (
             <ExplorerToolbar
