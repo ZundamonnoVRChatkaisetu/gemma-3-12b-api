@@ -66,7 +66,8 @@ class ReasoningEngine:
     def perform_step_by_step_reasoning(self, 
                                        question: str, 
                                        context: Optional[str] = None,
-                                       detail_level: str = "medium") -> Dict[str, Any]:
+                                       detail_level: str = "medium",
+                                       chat_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
         """
         ステップバイステップの思考プロセスで推論を実行
         
@@ -74,6 +75,7 @@ class ReasoningEngine:
             question: 質問/問題
             context: 追加のコンテキスト情報（オプション）
             detail_level: 推論の詳細レベル（"low", "medium", "high"）
+            chat_history: 会話履歴
             
         Returns:
             Dict[str, Any]: 推論結果（ステップ、最終回答、確信度など）
@@ -108,6 +110,7 @@ class ReasoningEngine:
    - 60-74%: 中程度の確信、複数の解釈の可能性がある
    - 40-59%: 不確実性が高い
    - 0-39%: 推測に基づく回答
+8. 会話履歴がある場合は、それを考慮して回答してください。以前の質問と回答の文脈を理解し、新しい質問に対して一貫性のある回答を提供してください。
 
 必ず以下のJSON形式で出力してください。すべてのプロパティ名はダブルクォーテーション（"）で囲んでください：
 {{
@@ -126,16 +129,24 @@ class ReasoningEngine:
 現在の日付: {settings.CURRENT_DATE if hasattr(settings, 'CURRENT_DATE') else "不明"}
 """
 
+        # メッセージの準備
+        messages = [Message(role="system", content=system_prompt)]
+        
+        # 会話履歴がある場合は追加
+        if chat_history:
+            for msg in chat_history:
+                messages.append(Message(role=msg["role"], content=msg["content"]))
+        
         # コンテキスト情報を含める場合
         user_prompt = question
         if context:
             user_prompt = f"問題: {question}\n\n追加コンテキスト:\n{context}"
         
+        # ユーザーメッセージを追加
+        messages.append(Message(role="user", content=user_prompt))
+        
         # 推論の実行
-        response = self.chat_model.generate_response([
-            Message(role="system", content=system_prompt),
-            Message(role="user", content=user_prompt)
-        ])
+        response = self.chat_model.generate_response(messages)
         
         # JSONレスポンスの抽出と解析
         try:
@@ -202,7 +213,8 @@ class ReasoningEngine:
     def evaluate_statement(self, 
                            statement: str, 
                            context: Optional[str] = None,
-                           detail_level: str = "medium") -> Dict[str, Any]:
+                           detail_level: str = "medium",
+                           chat_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
         """
         文の真偽を評価し、確信度を示す
         
@@ -210,6 +222,7 @@ class ReasoningEngine:
             statement: 評価する文
             context: 追加のコンテキスト情報（オプション）
             detail_level: 推論の詳細レベル（"low", "medium", "high"）
+            chat_history: 会話履歴
             
         Returns:
             Dict[str, Any]: 評価結果（真偽、確信度、根拠など）
@@ -242,6 +255,7 @@ class ReasoningEngine:
    - 25-39%: おそらく偽だが、部分的に正確な要素を含む
    - 0-24%: 主張が明確に偽である
 5. 判断に不確実性がある場合は、その具体的な内容と理由を明示してください。
+6. 会話履歴がある場合は、それを考慮して評価してください。以前の質問と回答の文脈を理解し、新しい評価に役立ててください。
 
 必ず以下のJSON形式で出力してください。すべてのプロパティ名はダブルクォーテーション（"）で囲んでください：
 {{
@@ -260,16 +274,24 @@ class ReasoningEngine:
 現在の日付: {settings.CURRENT_DATE if hasattr(settings, 'CURRENT_DATE') else "不明"}
 """
 
+        # メッセージの準備
+        messages = [Message(role="system", content=system_prompt)]
+        
+        # 会話履歴がある場合は追加
+        if chat_history:
+            for msg in chat_history:
+                messages.append(Message(role=msg["role"], content=msg["content"]))
+
         # コンテキスト情報を含める場合
         user_prompt = f"評価する文: {statement}"
         if context:
             user_prompt += f"\n\n追加コンテキスト:\n{context}"
         
+        # ユーザーメッセージを追加
+        messages.append(Message(role="user", content=user_prompt))
+        
         # 評価の実行
-        response = self.chat_model.generate_response([
-            Message(role="system", content=system_prompt),
-            Message(role="user", content=user_prompt)
-        ])
+        response = self.chat_model.generate_response(messages)
         
         # JSONレスポンスの抽出
         try:
@@ -328,7 +350,8 @@ class ReasoningEngine:
                         options: List[str],
                         criteria: Optional[List[str]] = None,
                         context: Optional[str] = None,
-                        detail_level: str = "medium") -> Dict[str, Any]:
+                        detail_level: str = "medium",
+                        chat_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
         """
         複数の選択肢を比較して最適なものを選択
         
@@ -338,6 +361,7 @@ class ReasoningEngine:
             criteria: 評価基準（オプション）
             context: 追加のコンテキスト情報（オプション）
             detail_level: 推論の詳細レベル（"low", "medium", "high"）
+            chat_history: 会話履歴
             
         Returns:
             Dict[str, Any]: 比較結果（ランク付け、選択された選択肢、理由など）
@@ -380,6 +404,7 @@ class ReasoningEngine:
 4. スコアの根拠を明確に説明してください。
 5. 最終的に最適な選択肢を選び、その選択の根拠と理由を詳細に説明してください。
 6. オプション間の相対的な優劣を明確にするためにランキングを作成してください。
+7. 会話履歴がある場合は、それを考慮して比較してください。以前の質問と回答の文脈を理解し、一貫性のある比較を提供してください。
 
 必ず以下のJSON形式で出力してください。すべてのプロパティ名はダブルクォーテーション（"）で囲んでください：
 {{
@@ -401,6 +426,14 @@ class ReasoningEngine:
 現在の日付: {settings.CURRENT_DATE if hasattr(settings, 'CURRENT_DATE') else "不明"}
 """
 
+        # メッセージの準備
+        messages = [Message(role="system", content=system_prompt)]
+        
+        # 会話履歴がある場合は追加
+        if chat_history:
+            for msg in chat_history:
+                messages.append(Message(role=msg["role"], content=msg["content"]))
+
         # ユーザープロンプトの構築
         user_prompt = f"質問: {question}\n\n選択肢:\n{options_text}"
         if criteria_text:
@@ -408,11 +441,11 @@ class ReasoningEngine:
         if context:
             user_prompt += f"\n\n追加コンテキスト:\n{context}"
         
+        # ユーザーメッセージを追加
+        messages.append(Message(role="user", content=user_prompt))
+        
         # 比較の実行
-        response = self.chat_model.generate_response([
-            Message(role="system", content=system_prompt),
-            Message(role="user", content=user_prompt)
-        ])
+        response = self.chat_model.generate_response(messages)
         
         # JSONレスポンスの抽出
         try:
