@@ -3,8 +3,12 @@
 import * as React from "react"
 import * as SeparatorPrimitive from "@radix-ui/react-separator"
 
-import { cn } from "../../lib/utils"
+import { cn } from "@/lib/utils"
 
+/**
+ * 区切り線コンポーネント
+ * コンテンツ間に水平または垂直の区切り線を提供します
+ */
 const Separator = React.forwardRef<
   React.ElementRef<typeof SeparatorPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SeparatorPrimitive.Root>
