@@ -103,7 +103,8 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content, isUser 
   
   return (
     <div className={cn(
-      isUser ? "text-white" : "text-gray-800"
+      "text-current", // Use text-current to inherit text color from parent
+      isUser ? "text-white" : ""
     )}>
       {parts}
     </div>
