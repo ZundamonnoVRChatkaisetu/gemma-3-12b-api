@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Send, FileText, Copy, Check, Folder, HelpCircle } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip'
 import EnhancedFileManager from '../components/FileManager/EnhancedFileManager'
+import { MessageContent } from '../components/MessageContent'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -295,7 +296,11 @@ export default function ChatInterface() {
                           : 'bg-white border border-gray-200'
                       }`}
                     >
-                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      {/* MessageContentコンポーネントを使用してコードブロックを検出・表示 */}
+                      <MessageContent 
+                        content={message.content} 
+                        isUser={message.role === 'user'} 
+                      />
                       
                       <button
                         onClick={() => copyMessageToClipboard(index)}
