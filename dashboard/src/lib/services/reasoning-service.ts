@@ -59,11 +59,8 @@ class ReasoningService {
 
   constructor() {
     // APIのベースURLを設定
-    // 問題解決のために修正: 明示的にAPIベースURLを設定し、エンドポイントパスを正確に指定
-    this.baseUrl = typeof window !== 'undefined' 
-      ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
-      : `${API_BASE_URL}/api/v1`;
-    
+    // 明示的にポート番号とプロトコルを含めたAPIベースURLを設定
+    this.baseUrl = "http://localhost:8000/api/v1";
     console.log("Reasoning API baseUrl:", this.baseUrl);
   }
 
@@ -92,12 +89,14 @@ class ReasoningService {
           // JSONとして解析できない場合はテキストを取得
           const errorText = await response.text();
           console.error('エラーレスポンスのテキスト:', errorText);
-          errorMessage = `APIエラー: ${response.status} - レスポンスの解析に失敗しました`;
+          errorMessage = `APIエラー: ${response.status} - ${errorText.slice(0, 200)}`;
         }
         throw new Error(errorMessage);
       }
 
-      return await response.json();
+      const jsonResponse = await response.json();
+      console.log("API応答:", jsonResponse);
+      return jsonResponse;
     } catch (error) {
       console.error('ステップバイステップ推論中にエラー:', error);
       throw error;
@@ -129,12 +128,14 @@ class ReasoningService {
           // JSONとして解析できない場合はテキストを取得
           const errorText = await response.text();
           console.error('エラーレスポンスのテキスト:', errorText);
-          errorMessage = `APIエラー: ${response.status} - レスポンスの解析に失敗しました`;
+          errorMessage = `APIエラー: ${response.status} - ${errorText.slice(0, 200)}`;
         }
         throw new Error(errorMessage);
       }
 
-      return await response.json();
+      const jsonResponse = await response.json();
+      console.log("API応答:", jsonResponse);
+      return jsonResponse;
     } catch (error) {
       console.error('文の評価中にエラー:', error);
       throw error;
@@ -166,12 +167,14 @@ class ReasoningService {
           // JSONとして解析できない場合はテキストを取得
           const errorText = await response.text();
           console.error('エラーレスポンスのテキスト:', errorText);
-          errorMessage = `APIエラー: ${response.status} - レスポンスの解析に失敗しました`;
+          errorMessage = `APIエラー: ${response.status} - ${errorText.slice(0, 200)}`;
         }
         throw new Error(errorMessage);
       }
 
-      return await response.json();
+      const jsonResponse = await response.json();
+      console.log("API応答:", jsonResponse);
+      return jsonResponse;
     } catch (error) {
       console.error('選択肢の比較中にエラー:', error);
       throw error;
